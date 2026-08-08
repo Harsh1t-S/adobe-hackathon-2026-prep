@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "theme": "Speak to Agents: The New Language of Brand Visibility",
+  "rounds": [
+    {
+      "n": 1,
+      "title": "Online Assessment (MCQ + Coding)",
+      "shortDate": "09 Aug",
+      "window": "09 Aug 26, 02:00 PM IST → 09 Aug 26, 10:00 PM IST",
+      "startISO": "2026-08-09T14:00:00+05:30",
+      "endISO": "2026-08-09T22:00:00+05:30",
+      "quote": "In this round, participants are required to attempt a 1-hour online assessment comprising 15 multiple-choice questions (15 minutes), 2 coding challenges (45 minutes). The team's final score will be calculated based on the average score of all its members."
+    },
+    {
+      "n": 2,
+      "title": "Case Study on Brand Visibility",
+      "shortDate": "16 Aug",
+      "window": "16 Aug 26, 12:00 PM IST → 16 Aug 26, 04:00 PM IST",
+      "startISO": "2026-08-16T12:00:00+05:30",
+      "endISO": "2026-08-16T16:00:00+05:30",
+      "quote": "Shortlisted participants from the Online Assessment Round will advance to this round. Participants will be required to analyse a real-world brand visibility case study and answer a set of questions based on the given scenario. Responses will be evaluated on analytical thinking, strategic approach, and the ability to derive actionable insights. This round must be completed within 45 minutes in one sitting before the timer expires. Each participant is allowed only one attempt."
+    },
+    {
+      "n": 3,
+      "title": "Development Round",
+      "shortDate": "27 Aug",
+      "window": "27 Aug 26, 04:00 PM IST → 13 Sep 26, 11:59 PM IST",
+      "startISO": "2026-08-27T16:00:00+05:30",
+      "endISO": "2026-09-13T23:59:00+05:30",
+      "quote": "All shortlisted teams will receive the detailed problem statement once the round goes live. Teams will be required to build a solution as outlined in the problem brief and submit it following the prescribed guidelines. Submission requirements, including the GitHub repository link and any supporting documents, along with detailed instructions, will be shared with the shortlisted teams before the round begins."
+    }
+  ],
+  "rulesBrief": "**Round 1 is one hour, split in two.** 15 MCQs get 15 minutes — that is 60 seconds each, so recognition beats derivation. Then 2 coding challenges get 45 minutes, roughly 22 minutes per problem including reading and debugging.\n\n**Your team score is the average of every member's score.** One member at 5/15 drags a team of two 13s down to 10.3. There is no carrying anyone here — the cheapest marks on the table are the ones your weakest member is currently dropping.\n\n**The Round 1 window is 8 hours wide (2:00 PM – 10:00 PM IST) but the test itself is 1 hour.** You choose when to start inside that window; once you start, the clock does not pause.\n\n**Round 2 is individual, 45 minutes, one sitting, one attempt.** It is a written case study on brand visibility, marked on *analytical thinking, strategic approach, and the ability to derive actionable insights* — that phrasing is from the official brief, and it is effectively the rubric.\n\n**Eligibility:** open to engineering students across all years and branches; teams of 2–3 from the same institute.\n\n> Timings, quotes and dates on this page are taken from the official Unstop listing. Verify against Unstop before the round — the organisers can change them."
+}

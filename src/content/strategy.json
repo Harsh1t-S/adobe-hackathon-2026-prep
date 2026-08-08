@@ -1,0 +1,92 @@
+[
+  {
+    "id": "clock-a",
+    "title": "Section A: 15 questions, 15 minutes, 60 seconds each",
+    "body": "Sixty seconds is not enough time to *derive* an answer. It is enough time to *recognise* one. That single fact should change how you attempt the section.\n\n**The 20-second triage rule.** Read the question. At 20 seconds, you are in one of three states:\n\n1. **You know it.** Answer, move on. Should take 25–40 seconds total.\n2. **You can get it with work** — a dry run, a small calculation, a recurrence. Mark it and *leave it*. Come back only if time remains.\n3. **You do not know it.** Eliminate what you can, pick the best survivor, move on. Do not stare.\n\nThe failure mode that kills scores is spending 4 minutes on a hard DP question and then rushing the last 6 questions, three of which were free. Four minutes on one question costs you the four questions you never properly read.\n\n**Two-pass structure.** Pass one: answer everything in state 1, flag everything else. Target 8–9 minutes. Pass two: return to flagged questions in the order you flagged them, hardest last. Reserve the final 60 seconds to make sure *no question is blank*.\n\n**Guessing.** No negative marking has been announced for this assessment. Unless the interface explicitly warns you about negative marking when you start, **leave nothing blank** — a blind guess on 4 options is worth 0.25 marks in expectation, and eliminating even one option raises that to 0.33. If the instructions on the day *do* announce negative marking, only guess after eliminating at least two options.\n\n**Read the last line first.** Many MCQs bury the actual ask in the final sentence — *\"how many times does the inner statement execute\"* is a different question from *\"what is the time complexity\"*. Read what is being asked, then read the stem.",
+    "checklist": [
+      "Decide your triage rule before you start, not during the paper",
+      "Confirm on the instruction screen whether negative marking applies",
+      "Finish pass one by the 9-minute mark",
+      "Nothing blank at 15:00"
+    ]
+  },
+  {
+    "id": "clock-b",
+    "title": "Section B: 2 problems, 45 minutes",
+    "body": "Two problems, 45 minutes. Not 22.5 minutes each — budget it asymmetrically:\n\n| Minutes | What you are doing |\n|---|---|\n| 0–3 | Read **both** problems fully. Decide which is easier. |\n| 3–20 | Solve the easier one. Submit it. |\n| 20–40 | Solve the harder one. |\n| 40–45 | Resubmit anything failing, fix edge cases, make sure both have *something* submitted. |\n\n**Read both before writing anything.** Three minutes spent choosing the right order routinely saves ten. The problem that *looks* harder is often the one with the cleaner pattern, and the friendly-sounding one is often a fiddly simulation with six edge cases.\n\n**The 5-minute approach rule.** If you have been coding for five minutes and are still not sure your approach is correct, stop typing. Go back to the statement. An approach you are unsure of at minute 5 becomes an unfixable mess at minute 18.\n\n**Partial credit is real.** Most OA platforms score per test case. A brute force that passes 60% of tests beats an elegant O(n log n) that does not compile. **Get something correct submitted, then optimise.** If you have a working O(n²) at minute 15 and constraints say n ≤ 10⁵, submit the brute force *first*, then improve it — you bank the partial marks either way.\n\n**At minute 40, stop being ambitious.** Whatever is on screen, make it compile and make it handle the sample cases. An almost-perfect solution that throws a compile error scores zero.",
+    "checklist": [
+      "Read both problems before writing a line",
+      "Easier problem first, always",
+      "Submit a working brute force before optimising",
+      "At minute 40, freeze scope and make it compile"
+    ]
+  },
+  {
+    "id": "coding-procedure",
+    "title": "A repeatable procedure for coding under a timer",
+    "body": "Do these six things in this order, every time. Under stress you do not rise to the occasion; you fall to your procedure.\n\n**1. Restate the contract.** In one line, out loud or in a comment: *input is an array of n ints, output is a single int, n can be 0*. Half of all wrong submissions are answers to a slightly different question.\n\n**2. Name the pattern.** Say which of these it is: two pointers, sliding window, hash map counting, sort-then-scan, binary search on the answer, BFS/DFS, topological sort, 1D DP, 2D DP, greedy with an exchange argument, monotonic stack, heap/top-K. If you cannot name it in 90 seconds, write the brute force — the brute force often reveals the pattern.\n\n**3. Write the signature and the return first.** Then fill in the middle. This stops you from writing a function that returns nothing on some path.\n\n**4. Handle the degenerate cases at the top.** `if not arr: return 0`. Empty, single element, all identical. Two lines at the top of the function that cost nothing and save whole test cases.\n\n**5. Dry-run on the sample before submitting.** Actually trace it. Not \"it looks right\" — take sample 1 and walk the state through. This is the single highest-value 90 seconds in the entire section.\n\n**6. Only then submit.**\n\n### The bugs that actually cost marks\n\n- **Off-by-one in loop bounds** — `<` vs `<=`, and `n - 1` vs `n`.\n- **Integer overflow in Java and C++** — `int` overflows past 2,147,483,647. If the constraint says values up to 10⁹ and you are summing n of them, you need `long` / `long long`. Python is immune; Java and C++ are not.\n- **Printing instead of returning** (or the reverse). Check whether the harness wants a return value or stdout.\n- **Unhandled empty input** — the test suite always includes it.\n- **Mutating the input** when the contract says not to.\n- **Reading input wrong** — if you must parse stdin, get that right before anything else; a parsing bug looks exactly like an algorithm bug.\n- **Using a `set` and then expecting order.**",
+    "checklist": [
+      "Restate the input/output contract in one line",
+      "Name the pattern before coding",
+      "Degenerate cases handled in the first two lines",
+      "Dry-run sample 1 by hand before hitting submit",
+      "long / long long where values exceed 2 × 10⁹"
+    ]
+  },
+  {
+    "id": "language",
+    "title": "Which language to write in",
+    "body": "Under a 22-minute-per-problem budget, the right language is the one you type fastest in without looking things up. But the trade-offs are real:\n\n**Python** — fewest keystrokes, no overflow ever, and the standard library does most of the work: `collections.Counter`, `defaultdict`, `deque`, `heapq`, `itertools`, `bisect`, `functools.lru_cache` for instant memoisation. The risk is speed: a tight O(n²) loop over n = 10⁵ will time out where C++ would not. If n ≤ 10⁴ or the solution is O(n log n), Python is almost always the fastest path to a correct submission.\n\n**Java** — verbose but predictable, and fast enough for anything. Watch `int` overflow, and remember `==` compares references for objects (`equals` for `String`). Useful: `HashMap.getOrDefault`, `PriorityQueue`, `ArrayDeque`, `Arrays.sort`, `StringBuilder` (never `String +=` in a loop — that is O(n²)).\n\n**C++** — fastest to run, slowest to write. Worth it only if you are already fluent. Useful: `unordered_map`, `sort`, `priority_queue`, `lower_bound`, and `ios_base::sync_with_stdio(false)` if input is large.\n\n**Recommendation:** unless you compete regularly in C++, write Python. Switch to Java or C++ only when a submission times out — and then port the algorithm you have already proven correct, rather than starting over.",
+    "checklist": [
+      "Pick your language before the round, not during it",
+      "Know your language's memoisation one-liner cold",
+      "If a Python submission TLEs, port the working algorithm rather than rethinking it"
+    ]
+  },
+  {
+    "id": "mcq-heuristics",
+    "title": "MCQ heuristics that buy you seconds",
+    "body": "**Recognise the question shape.** Most MCQs in this format are one of about eight shapes, and each has a fast route:\n\n| Shape | Fast route |\n|---|---|\n| Count the loop iterations | Look at where the inner index *starts*. `j = i` → n(n+1)/2. `j = i+1` → n(n-1)/2. `j = 0` → n². |\n| \"What is the complexity of…\" | Find the loop that multiplies/divides a variable — that is your log. Additive loops do not nest. |\n| Predict the output of this snippet | Look for the trap first: mutation, aliasing, integer division, pre/post increment, short-circuit. |\n| Which data structure | Match the operation set, then the complexity guarantee. \"Ordered\" rules out hash tables. |\n| Which algorithm applies | Check the constraint that disqualifies: negative edges kill Dijkstra, cycles kill topological sort. |\n| Normal forms / ACID / isolation | These are definition-recall. Either you know it in 10 seconds or you guess and move. |\n| Aptitude / probability | Look for the complement — `1 − P(none)` is usually far less arithmetic than summing cases. |\n| Output of a SQL query | Read the `JOIN` type and the `WHERE` before reading the `SELECT`. |\n\n**Eliminate by dimension.** If the options are `O(n)`, `O(n log n)`, `O(n²)`, `O(2ⁿ)` — a single loop can never be exponential, and nothing halves anything, so `O(2ⁿ)` and `O(n log n)` often die immediately. Two options eliminated turns a 25% guess into 50%.\n\n**The distractors are made of your mistakes.** Wrong options in a well-built paper are the answers you get by making the specific common error. So if your answer matches an option *exactly and immediately*, that is weak evidence — check whether you fell into the obvious trap.\n\n**Code snippets: track state in the margin.** For output-prediction, write the variable values down as you step. Trying to hold three mutating variables in your head at speed is how people lose these.",
+    "checklist": [
+      "Classify the question shape before solving it",
+      "Eliminate impossible complexity classes immediately",
+      "Write down mutating state for snippet questions"
+    ]
+  },
+  {
+    "id": "average",
+    "title": "Because the team score is the average",
+    "body": "The official brief is explicit: *\"The team's final score will be calculated based on the average score of all its members.\"* This changes the optimal team strategy completely.\n\n**The arithmetic.** In a 3-person team, moving your strongest member from 12/15 to 14/15 raises the team average by 0.67. Moving your weakest from 6/15 to 10/15 raises it by 1.33 — **twice the return, and it is far easier to do**. Marks at the bottom of the distribution are cheap; marks at the top are expensive.\n\n**So: the whole team optimises for the weakest member.** Whoever is furthest behind gets the group's attention, not the person who enjoys practice the most.\n\n### The 6-hour crash plan (for a member who is behind)\n\n| Time | What |\n|---|---|\n| 0:00–0:30 | Take one 15-question mock cold. Do not study first — you need the diagnosis, not the comfort. |\n| 0:30–2:30 | Drill the two weakest topics from the report, filtered to *Easy* and *Medium* only. Read every explanation, including the ones you got right. |\n| 2:30–3:30 | Output-prediction and complexity questions specifically. These are the highest-density, most learnable marks in the paper. |\n| 3:30–5:00 | Three coding problems from the lab: one easy, two medium. Type the solutions out yourself — do not read them. |\n| 5:00–5:30 | Flashcards, full pass. |\n| 5:30–6:00 | Second mock. Compare topic bars against the first. |\n\n### The 90-minute panic plan\n\n| Time | What |\n|---|---|\n| 0:00–0:15 | One mock. Diagnosis only. |\n| 0:15–0:45 | Flashcards, full pass — this is pure recall and it moves the needle fastest. |\n| 0:45–1:15 | Weakest topic, Easy + Medium only. |\n| 1:15–1:30 | Re-read this strategy page. Fix the clock rules in your head. |\n\n**Practical team move:** everyone exports their progress from the Progress page and shares the file. Compare topic bars side by side. The lowest bar in the *team* is the one everyone should spend the next hour on.",
+    "checklist": [
+      "Identify the team's weakest member honestly, today",
+      "Everyone runs one mock and exports progress",
+      "Group study time goes to the lowest team-wide topic bar",
+      "Nobody skips the coding lab — section B is 45 of the 60 minutes"
+    ]
+  },
+  {
+    "id": "r2-setup",
+    "title": "Round 2: setting up for a 45-minute written round",
+    "body": "Round 2 is individual, 45 minutes, one sitting, one attempt, and it is *typed prose*. That makes it a completely different skill from Round 1, and the failure modes are logistical as much as intellectual.\n\n**Draft in the box, not outside it.** Tempting as it is to write in a separate editor and paste, every extra step is a chance to lose work or run out of time pasting. Type into the answer field. If the platform allows it, keep a scratch note open for your structure only.\n\n**Spend the first 5 minutes not writing.** Read the whole case, all questions, and the data table before answering anything. Question 4 usually tells you what question 1 was really about.\n\n**Then allocate by marks, not by interest.** If there are 5 questions and 40 minutes left, that is 8 minutes each. Set the split before you start typing and hold to it. Running out of time with question 5 blank costs more than any amount of polish on question 1.\n\n**Structure every answer the same way.** Evaluators skim. Use a visible skeleton — a one-line answer up front, then 3–4 bullets, then a closing line on risk or measurement. A wall of prose reads as unstructured thinking even when the thinking is good.\n\n**Type speed matters more than you think.** At 40 words per minute, 8 minutes is 320 words — enough for a strong structured answer. At 20 wpm it is 160 words, which will read as thin. If you type slowly, write shorter sentences and lean harder on bullets.\n\n**The failure modes that lose the round outright:**\n\n- Not answering the last question at all.\n- Writing everything you know about the topic instead of answering the question asked.\n- Recommending things without saying how you would measure whether they worked.\n- No numbers anywhere. Any quantification, even a stated assumption, beats none.\n- Generic advice that would apply to any brand in any industry. If your answer would survive a find-and-replace of the company name, it is not scoring well.",
+    "checklist": [
+      "Read all questions before answering any",
+      "Divide the remaining minutes by the number of questions and write it down",
+      "Every answer: one-line verdict, bullets, then measurement and risk",
+      "Every recommendation carries a metric",
+      "Last question gets answered even if it is short"
+    ]
+  },
+  {
+    "id": "day-of",
+    "title": "The day-of checklist",
+    "body": "**Before the window opens**\n\n- Wired internet if you have it; if not, sit next to the router and turn off other devices pulling bandwidth.\n- Phone on hotspot standby, charged, in case the primary connection dies.\n- Laptop plugged in. Battery saver off — some machines throttle the CPU on battery and that can matter in a timed compiler.\n- Close everything else. Every Chrome tab, Discord, Steam, downloads.\n- College ID and government ID within reach.\n- Water. Bathroom before you start. Sixty minutes with no pause.\n\n**Rules you must confirm on the instructions screen** — do not assume, read them on the day:\n\n- Is there negative marking?\n- Is tab-switching detected or penalised? Assume yes and do not switch.\n- Is the webcam or screen being monitored?\n- Which languages does the code editor offer? Confirm yours is there *before* the timer starts.\n- Can you move between MCQs freely, or is it one-way? A one-way paper changes your flag-and-return strategy entirely.\n\n**The 10-minute warm-up before you click start**\n\n1. Two easy MCQs from the practice bank — not to learn anything, just to get your reading speed up.\n2. Skim your own flashcards for 3 minutes.\n3. Re-read the clock rules on this page: 60 seconds per MCQ, easier coding problem first, submit a brute force before optimising.\n4. Do not learn anything new in the last hour. It does not stick and it costs you confidence.\n\n**If something goes wrong mid-test:** screenshot it immediately with the timer visible, note the exact time, and use the platform's report/support channel. Evidence gathered during the incident is worth vastly more than a description afterwards.\n\n**Start early in the window.** The window is 2:00 PM to 10:00 PM IST. Starting at 9:15 PM leaves you no room if the platform has trouble, and support is thinner late. Aim to start with at least two hours of window left behind you.",
+    "checklist": [
+      "Wired or strong connection, hotspot as backup",
+      "Laptop on mains power, battery saver off",
+      "Both IDs to hand",
+      "Read the instruction screen for negative marking and tab-switch rules",
+      "Confirm your language is in the editor before starting",
+      "Start with at least 2 hours of the window still remaining"
+    ]
+  }
+]

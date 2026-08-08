@@ -1,0 +1,461 @@
+[
+ {
+  "id": "ca-01",
+  "title": "Budget Pair in a Price List",
+  "difficulty": "easy",
+  "topics": [
+   "arrays",
+   "two pointers",
+   "sorted array",
+   "searching"
+  ],
+  "statement": "An in-app shopping assistant must spend an **exact budget** on exactly two accessories.\n\nYou are given `prices`, a **strictly increasing** array of `n` distinct positive integers, and an integer `budget`.\n\nReturn the **1-indexed** positions `[i, j]` with `i < j` of two different accessories whose prices add up to exactly `budget`. If several pairs qualify, return the one with the **smallest `i`**. If no such pair exists, return `[-1, -1]`.\n\nBecause the values are distinct and strictly increasing, the smallest-`i` rule identifies a unique answer.\n\n### Contract\n- Input: `prices` (strictly increasing `int[]`), `budget` (integer; note that a sum of two prices can exceed the signed 32-bit range)\n- Output: an array of exactly two integers, either a valid 1-indexed pair or `[-1, -1]`\n- Required: `O(1)` extra space — do **not** build a hash set\n\n```\npython: def find_budget_pair(prices: List[int], budget: int) -> List[int]\njava  : public int[] findBudgetPair(int[] prices, long budget)\ncpp   : vector<int> findBudgetPair(const vector<int>& prices, long long budget)\n```",
+  "examples": [
+   {
+    "input": "prices = [1, 3, 4, 7, 11], budget = 15",
+    "output": "[3, 5]",
+    "explanation": "Position 3 holds 4 and position 5 holds 11, and 4 + 11 = 15. Nothing with a smaller first index works: the value 1 would need a partner of 14 (absent) and the value 3 would need 12 (absent). So the smallest valid i is 3, and its partner is at position 5."
+   },
+   {
+    "input": "prices = [1, 2, 4, 8], budget = 6",
+    "output": "[2, 3]",
+    "explanation": "2 + 4 = 6. The value 1 at position 1 would need a 5, which is not in the array, so i = 1 is impossible and the answer starts at position 2."
+   },
+   {
+    "input": "prices = [2, 5, 9, 12], budget = 100",
+    "output": "[-1, -1]",
+    "explanation": "The largest achievable sum is 9 + 12 = 21, which is far below 100, so no pair exists and the sentinel is returned."
+   }
+  ],
+  "constraints": [
+   "2 <= n <= 2 * 10^5",
+   "1 <= prices[0] < prices[1] < ... < prices[n-1] <= 10^9 (strictly increasing, all distinct)",
+   "1 <= budget <= 2 * 10^9 — budget itself does not fit in a signed 32-bit int, and neither does prices[i] + prices[j]",
+   "Indices in the answer are 1-based and must satisfy i < j",
+   "Auxiliary space must be O(1)"
+  ],
+  "hints": [
+   "The array is already sorted — that ordering is data, not decoration. Look at the cheapest and the most expensive item together. If their total is already too small, which of those two items can you rule out forever?",
+   "Place one pointer at each end and move exactly one of them per step, chosen by comparing the current sum with `budget`. No extra data structure is needed, so the O(1) space rule is free.",
+   "`lo = 0, hi = n - 1`. While `lo < hi`: let `s = prices[lo] + prices[hi]` computed in 64 bits. If `s == budget`, return `[lo + 1, hi + 1]`. If `s < budget`, do `lo++` (only a larger left value can help, since `prices[hi]` is the largest partner still available). Otherwise `hi--`. If the loop ends, return `[-1, -1]`. Each iteration permanently discards one element, so the loop runs at most n - 1 times, and the first hit is guaranteed to have the smallest valid i."
+  ],
+  "bruteForce": {
+   "idea": "Two nested loops over every pair (i, j) with i < j; test whether prices[i] + prices[j] == budget and return the first hit in row-major order, which is exactly the smallest-i pair.",
+   "time": "O(n^2)",
+   "space": "O(1)"
+  },
+  "optimal": {
+   "idea": "Opposite-end two pointers on the sorted array. Each comparison eliminates either the current smallest or the current largest element from all future consideration, so one linear sweep suffices.",
+   "time": "O(n)",
+   "space": "O(1)"
+  },
+  "walkthrough": "**Optimal two-pointer dry run on Example 1** — `prices = [1, 3, 4, 7, 11]` (0-indexed internally), `budget = 15`.\n\nInitial state: `lo = 0`, `hi = 4`.\n\n| step | lo | hi | prices[lo] | prices[hi] | sum | compare | action and reason |\n|------|----|----|------------|------------|-----|---------|-------------------|\n| 1 | 0 | 4 | 1 | 11 | 12 | 12 < 15 | 11 is the largest partner still available, and even it leaves 1 short. So index 0 can never be part of an answer -> `lo = 1` |\n| 2 | 1 | 4 | 3 | 11 | 14 | 14 < 15 | Same argument for the value 3: its best possible partner still falls short -> `lo = 2` |\n| 3 | 2 | 4 | 4 | 11 | 15 | equal | Hit. Return `[lo + 1, hi + 1] = [3, 5]` |\n\nOnly 3 iterations for a 5-element array, and no memory beyond two integers.\n\n**Why the first hit has the smallest i.** We only ever advance `lo` past an index whose sum with the *largest remaining* value was still too small, and we only ever retreat `hi` past an index whose sum with the *smallest remaining* value was already too large. So every discarded element is provably in no valid pair. Nothing valid is ever skipped, and since `lo` scans upward, the pair we land on carries the smallest feasible first index.\n\n**Overflow note:** at step 1 the values are tiny, but with `prices = [999999998, 1000000000]` the sum is 1999999998, which fits in `int` — while `budget` up to 2 * 10^9 does not. Compute both in 64-bit and the whole class of bugs disappears.",
+  "solutions": {
+   "python": "from typing import List\n\n\ndef find_budget_pair(prices: List[int], budget: int) -> List[int]:\n    \"\"\"Return the 1-indexed pair (smallest first index) summing to budget, else [-1, -1].\"\"\"\n    lo, hi = 0, len(prices) - 1\n    while lo < hi:\n        s = prices[lo] + prices[hi]  # Python ints are arbitrary precision: no overflow\n        if s == budget:\n            return [lo + 1, hi + 1]  # convert both to 1-indexed positions\n        if s < budget:\n            lo += 1  # prices[hi] is the biggest partner left, so prices[lo] is unusable\n        else:\n            hi -= 1  # prices[lo] is the smallest partner left, so prices[hi] is unusable\n    return [-1, -1]\n",
+   "java": "import java.util.*;\n\npublic class Solution {\n    public int[] findBudgetPair(int[] prices, long budget) {\n        int lo = 0, hi = prices.length - 1;\n        while (lo < hi) {\n            // widen to long: prices[lo] + prices[hi] can reach 2 * 10^9 and overflow int\n            long s = (long) prices[lo] + (long) prices[hi];\n            if (s == budget) {\n                return new int[]{lo + 1, hi + 1}; // 1-indexed positions\n            }\n            if (s < budget) {\n                lo++; // biggest available partner still too small -> discard prices[lo]\n            } else {\n                hi--; // smallest available partner already too big -> discard prices[hi]\n            }\n        }\n        return new int[]{-1, -1};\n    }\n}\n",
+   "cpp": "#include <vector>\n\nclass Solution {\npublic:\n    std::vector<int> findBudgetPair(const std::vector<int>& prices, long long budget) {\n        int lo = 0, hi = static_cast<int>(prices.size()) - 1;\n        while (lo < hi) {\n            // cast one operand: int + int would overflow before the assignment to long long\n            long long s = static_cast<long long>(prices[lo]) + prices[hi];\n            if (s == budget) {\n                return {lo + 1, hi + 1};  // 1-indexed positions\n            }\n            if (s < budget) {\n                ++lo;  // largest remaining partner still too small -> prices[lo] is dead\n            } else {\n                --hi;  // smallest remaining partner already too big -> prices[hi] is dead\n            }\n        }\n        return {-1, -1};\n    }\n};\n"
+  },
+  "edgeCases": [
+   "n == 2: the loop body runs exactly once and then exits",
+   "No pair exists at all -> must return [-1, -1], not throw or return an empty array",
+   "budget < prices[0] + prices[1] (hi walks all the way down) and budget > prices[n-2] + prices[n-1] (lo walks all the way up)",
+   "Overflow: prices[i] up to 10^9 means a sum up to 2 * 10^9, which does not fit in signed 32-bit — add in 64-bit",
+   "Answer sits at the extremes, [1, n], so the very first comparison succeeds",
+   "Answer sits in the middle, so the pointers nearly meet before the hit",
+   "Loop guard must be lo < hi, not lo <= hi, otherwise an element could pair with itself"
+  ],
+  "followUps": [
+   "What breaks if prices may contain duplicates and you must return the smallest i and then the smallest j? Which comparison has to change?",
+   "Return every distinct pair summing to budget (no duplicate pairs) while staying O(n).",
+   "The array is no longer sorted. Can you still achieve O(n) time, and what do you have to give up to get it?",
+   "Extend to three indices summing to budget in O(n^2) time and O(1) extra space."
+  ],
+  "patternTakeaway": "On a sorted array, opposite-end two pointers turn an O(n^2) pair search into O(n), because each comparison provably eliminates an entire row or column of the pair matrix."
+ },
+ {
+  "id": "ca-02",
+  "title": "Run-Length Log Compression",
+  "difficulty": "easy",
+  "topics": [
+   "strings",
+   "simulation",
+   "two pointers",
+   "string building"
+  ],
+  "statement": "An analytics pipeline stores event streams as lowercase strings in which consecutive identical characters are common. Implement the compressor it uses.\n\nGiven a string `s` of lowercase English letters, rewrite each **maximal run** of one repeated character as follows:\n- a run of length `1` -> just the character;\n- a run of length `k >= 2` -> the character followed by `k` written in decimal.\n\nIf the compressed result is **not strictly shorter** than `s`, return `s` unchanged (the pipeline keeps the original when compression does not pay off).\n\nA *maximal run* is a longest block of equal adjacent characters: in `\"aaabbbbcc\"` the runs are `aaa`, `bbbb`, `cc`.\n\n### Contract\n- Input: `s`, a non-empty string of `'a'`..`'z'`\n- Output: a string — either the compressed form or the original `s`\n\n```\npython: def compress_log(s: str) -> str\njava  : public String compressLog(String s)\ncpp   : std::string compressLog(const std::string& s)\n```",
+  "examples": [
+   {
+    "input": "s = \"aaabbbbcc\"",
+    "output": "\"a3b4c2\"",
+    "explanation": "The runs are aaa (length 3 -> \"a3\"), bbbb (length 4 -> \"b4\") and cc (length 2 -> \"c2\"). Concatenating gives \"a3b4c2\", which has length 6 versus the original 9. Since 6 < 9 the compressed form is returned."
+   },
+   {
+    "input": "s = \"aab\"",
+    "output": "\"aab\"",
+    "explanation": "The runs are aa (-> \"a2\") and b (length 1 -> \"b\"), so the compressed form is \"a2b\" with length 3. The original also has length 3, and the rule demands strictly shorter, so the ORIGINAL is returned. This is the case most naive submissions get wrong."
+   },
+   {
+    "input": "s = \"abcd\"",
+    "output": "\"abcd\"",
+    "explanation": "Every run has length 1, so no counts are emitted and the compressed form is \"abcd\" itself — equal length, not shorter, so the original is returned."
+   },
+   {
+    "input": "s = \"wwwwwwwwwwww\"",
+    "output": "\"w12\"",
+    "explanation": "A single run of 12 w's. The count is two digits, so the output is \"w12\" (length 3), not \"w1\" and not \"ww2\". Never assume a count fits in one character."
+   }
+  ],
+  "constraints": [
+   "1 <= |s| <= 10^5",
+   "s consists only of lowercase English letters ('a' to 'z') — there are no digits in the input, so counts are never ambiguous",
+   "A run may be as long as the whole string, so a count can have up to 6 digits",
+   "Return the original string whenever compressed length >= |s| (strictly shorter is required to swap)",
+   "The comparison is on length only, never on content"
+  ],
+  "hints": [
+   "A run is defined entirely by its boundaries: a character starts a new run exactly when it differs from the character before it. Try to describe the whole answer as one walk that only ever compares s[j] with the first character of the run currently open.",
+   "Use one pass with two indices: `i` marks where the current run starts and `j` runs forward while `s[j] == s[i]`. Append into a growable buffer — a list in Python, a StringBuilder in Java, a std::string in C++ — never into an immutable string inside the loop.",
+   "`i = 0`; while `i < n`: set `j = i` and advance `j` while `j < n and s[j] == s[i]`; let `run = j - i`; append `s[i]`; if `run >= 2` append the decimal digits of `run`; then set `i = j` (jump, do not step). After the loop, return the buffer only if `len(buffer) < len(s)`, otherwise return `s`."
+  ],
+  "bruteForce": {
+   "idea": "Build the output with repeated immutable string concatenation (out = out + ch + str(count)), and/or recount each run by rescanning from the current index every time instead of jumping past a finished run.",
+   "time": "O(n^2) — every concatenation copies the entire prefix built so far, and naive recounting rescans each run once per element",
+   "space": "O(n)"
+  },
+  "optimal": {
+   "idea": "A single left-to-right scan that discovers each maximal run exactly once (the inner pointer never revisits a character because the outer index jumps to the run end), appending into an amortized-O(1) buffer, followed by one length comparison.",
+   "time": "O(n)",
+   "space": "O(n) for the output buffer, O(1) auxiliary"
+  },
+  "walkthrough": "**Optimal single-pass dry run on Example 1** — `s = \"aaabbbbcc\"`, `n = 9`.\n\nIndices: `0:'a' 1:'a' 2:'a' 3:'b' 4:'b' 5:'b' 6:'b' 7:'c' 8:'c'`\n\n| outer i | s[i] | inner j scans | j stops at | run = j - i | appended | buffer so far |\n|---------|------|---------------|------------|-------------|----------|----------------|\n| 0 | 'a' | j = 0,1,2 match; s[3]='b' differs | 3 | 3 | `'a'` then `\"3\"` | `\"a3\"` |\n| 3 | 'b' | j = 3,4,5,6 match; s[7]='c' differs | 7 | 4 | `'b'` then `\"4\"` | `\"a3b4\"` |\n| 7 | 'c' | j = 7,8 match; j hits n | 9 | 2 | `'c'` then `\"2\"` | `\"a3b4c2\"` |\n\nLoop ends because `i = 9 = n`.\n\nFinal decision step: `len(buffer) = 6`, `len(s) = 9`. Since `6 < 9` is true, return `\"a3b4c2\"`.\n\n**Notice the total work.** The inner pointer visited index 0..2, then 3..6, then 7..8 — every index exactly once. The outer `i` never re-reads a character it already consumed because we assign `i = j` rather than `i = i + 1`. That is what keeps the pass linear instead of quadratic.\n\n**Contrast with Example 2** (`s = \"aab\"`): the same loop produces the buffer `\"a2b\"`, then the final comparison `3 < 3` is **false**, so the function returns the untouched original `\"aab\"`. The compression loop is correct in both cases — only the last line differs.",
+  "solutions": {
+   "python": "from typing import List\n\n\ndef compress_log(s: str) -> str:\n    \"\"\"Run-length compress s, but return s itself unless the result is strictly shorter.\"\"\"\n    parts: List[str] = []  # list buffer: joining once avoids O(n^2) string concatenation\n    n = len(s)\n    i = 0\n    while i < n:\n        j = i\n        while j < n and s[j] == s[i]:  # extend to the end of the maximal run\n            j += 1\n        run = j - i\n        parts.append(s[i])\n        if run >= 2:\n            parts.append(str(run))  # counts are emitted only for runs of length 2 or more\n        i = j  # jump past the finished run; never re-scan it\n    out = \"\".join(parts)\n    return out if len(out) < n else s  # strictly shorter, otherwise keep the original\n",
+   "java": "public class Solution {\n    public String compressLog(String s) {\n        int n = s.length();\n        StringBuilder out = new StringBuilder(); // mutable buffer: append is amortized O(1)\n        int i = 0;\n        while (i < n) {\n            int j = i;\n            while (j < n && s.charAt(j) == s.charAt(i)) { // walk to the end of the run\n                j++;\n            }\n            int run = j - i;\n            out.append(s.charAt(i));\n            if (run >= 2) {\n                out.append(run); // append(int) writes all decimal digits, e.g. 12 -> \"12\"\n            }\n            i = j; // jump past the finished run\n        }\n        return out.length() < n ? out.toString() : s; // strictly shorter or keep original\n    }\n}\n",
+   "cpp": "#include <string>\n\nclass Solution {\npublic:\n    std::string compressLog(const std::string& s) {\n        const int n = static_cast<int>(s.size());\n        std::string out;\n        out.reserve(s.size());  // upper bound guess; avoids most reallocations\n        int i = 0;\n        while (i < n) {\n            int j = i;\n            while (j < n && s[j] == s[i]) {  // extend to the end of the maximal run\n                ++j;\n            }\n            const int run = j - i;\n            out.push_back(s[i]);\n            if (run >= 2) {\n                out += std::to_string(run);  // multi-digit safe, e.g. 12 -> \"12\"\n            }\n            i = j;  // jump past the finished run\n        }\n        return out.size() < s.size() ? out : s;  // strictly shorter or keep original\n    }\n};\n"
+  },
+  "edgeCases": [
+   "|s| == 1, e.g. \"a\": compressed length equals 1, not strictly shorter -> return the original",
+   "All characters equal, e.g. 100000 a's -> \"a100000\" (best case, 7 characters)",
+   "No character repeats at all, e.g. \"abcdef\" -> the original is returned unchanged",
+   "Run length >= 10 -> multi-digit count; emitting only one digit silently corrupts the output",
+   "The tie case, compressed length == original length (\"aab\", \"aabb\") -> the ORIGINAL must be returned",
+   "A run of exactly 2 breaks even on its own (\"aa\" -> \"a2\"), so it only pays off alongside longer runs",
+   "Runs at the very start and the very end of the string must both be flushed — a common bug is losing the last run when the loop exits",
+   "Using immutable string concatenation inside the loop passes small tests but times out at |s| = 10^5"
+  ],
+  "followUps": [
+   "Write the matching decompressor and prove that decompress(compress(s)) == s for every legal input.",
+   "Do the compression in place on a character array using O(1) extra space and return the new length (the classic in-place variant).",
+   "What if the alphabet also contained digits? Describe the ambiguity that creates and design an escaping scheme.",
+   "Change the rule so counts are emitted only for runs of length >= 3. Which examples flip, and does the strictly-shorter check still matter?"
+  ],
+  "patternTakeaway": "Group-by-run scanning — advance a second index while it matches the run's first element, then jump the outer index to it — collapses adjacent-duplicate problems into a single linear pass."
+ },
+ {
+  "id": "ca-03",
+  "title": "Longest Distinct Intent Window",
+  "difficulty": "medium",
+  "topics": [
+   "arrays",
+   "sliding window",
+   "hash map",
+   "two pointers"
+  ],
+  "statement": "An assistant logs the intent id of every user turn in a session. A **clean stretch** is a block of consecutive turns in which no intent id repeats.\n\nGiven an integer array `intents` of length `n`, return the length of the **longest contiguous subarray whose elements are all distinct**. If `n == 0`, return `0`.\n\nThis is the array version of \"longest substring without repeating characters\": the alphabet here is huge, so a fixed-size counting table is not an option.\n\n### Contract\n- Input: `intents`, an integer array (values are ids, not bounded by a small alphabet)\n- Output: a single integer — the maximum length of an all-distinct contiguous block\n\n```\npython: def longest_distinct_window(intents: List[int]) -> int\njava  : public int longestDistinctWindow(int[] intents)\ncpp   : int longestDistinctWindow(const std::vector<int>& intents)\n```",
+  "examples": [
+   {
+    "input": "intents = [4, 2, 4, 7, 2, 9]",
+    "output": "4",
+    "explanation": "The block at indices 2..5 is [4, 7, 2, 9] — four different ids, so the answer is at least 4. No block of length 5 works: indices 0..4 give [4, 2, 4, 7, 2] which repeats both 4 and 2, and indices 1..5 give [2, 4, 7, 2, 9] which repeats 2. The whole array repeats as well, so 4 is the maximum."
+   },
+   {
+    "input": "intents = [3, 3, 3]",
+    "output": "1",
+    "explanation": "Any block of length 2 or more contains the id 3 twice, so only single elements are clean and the longest distinct window has length 1."
+   },
+   {
+    "input": "intents = [1, 2, 3, 4]",
+    "output": "4",
+    "explanation": "No id repeats anywhere, so the entire array is one clean stretch and the answer is n."
+   },
+   {
+    "input": "intents = [1, 2, 2, 1]",
+    "output": "2",
+    "explanation": "After the duplicate 2 forces the window start to index 2, the trailing 1 at index 3 has a previous occurrence at index 0 — but index 0 is already outside the window, so it must NOT push the start backwards. The best windows are [1,2], [2,1] and any single element, giving 2. Solutions that move the left pointer unconditionally report 3 here."
+   }
+  ],
+  "constraints": [
+   "0 <= n <= 2 * 10^5",
+   "0 <= intents[i] <= 10^9 — ids are large, so you cannot index an auxiliary array by value; a hash map is required",
+   "The subarray must be contiguous; subsequences are not allowed",
+   "The answer lies in [0, n], and equals 0 only when n == 0",
+   "Expected time O(n); an O(n^2) scan will time out at the upper bound"
+  ],
+  "hints": [
+   "Suppose the block ending at index r is already duplicate-free and you now extend it to r + 1. Exactly one thing can break it: the new value already appearing inside the block. Whether it does depends only on WHERE that value last appeared relative to the block's start.",
+   "Slide a window [left, right] rightwards. Keep a hash map from value -> the most recent index at which it was seen. That lets you repair a broken window in O(1) by jumping left, instead of shrinking it one element at a time.",
+   "`left = 0, best = 0, last = {}`. For each `right`: if `intents[right]` is in `last` AND `last[value] >= left`, set `left = last[value] + 1` (jump just past the stale copy). Then always set `last[value] = right` and update `best = max(best, right - left + 1)`. The guard `last[value] >= left` is essential — an occurrence recorded before `left` is already outside the window, and acting on it would move `left` BACKWARDS and overcount."
+  ],
+  "bruteForce": {
+   "idea": "For every start index i, extend j to the right while inserting values into a set that is cleared for each new i; stop at the first repeat and record j - i.",
+   "time": "O(n^2) expected (each of n starts scans up to n elements with O(1) set operations)",
+   "space": "O(n) for the per-start set"
+  },
+  "optimal": {
+   "idea": "One variable-size sliding window with a last-seen index map. The right edge advances once per element, and the left edge only ever jumps forward, so the total pointer movement is linear.",
+   "time": "O(n) expected",
+   "space": "O(min(n, number of distinct ids))"
+  },
+  "walkthrough": "**Optimal sliding-window dry run on Example 1** — `intents = [4, 2, 4, 7, 2, 9]`.\n\nInitial state: `left = 0`, `best = 0`, `last = {}` (map from value -> last index seen).\n\n| right | value | is value in last, and is last[value] >= left? | left after | last after the update | window contents | window length | best |\n|-------|-------|----------------------------------------------|------------|------------------------|-----------------|---------------|------|\n| 0 | 4 | not present | 0 | `{4:0}` | [4] | 1 | 1 |\n| 1 | 2 | not present | 0 | `{4:0, 2:1}` | [4, 2] | 2 | 2 |\n| 2 | 4 | present, last[4] = 0 >= left 0 -> **jump** `left = 1` | 1 | `{4:2, 2:1}` | [2, 4] | 2 | 2 |\n| 3 | 7 | not present | 1 | `{4:2, 2:1, 7:3}` | [2, 4, 7] | 3 | 3 |\n| 4 | 2 | present, last[2] = 1 >= left 1 -> **jump** `left = 2` | 2 | `{4:2, 2:4, 7:3}` | [4, 7, 2] | 3 | 3 |\n| 5 | 9 | not present | 2 | `{4:2, 2:4, 7:3, 9:5}` | [4, 7, 2, 9] | 4 | **4** |\n\nAnswer: `best = 4`, realised by the window `[4, 7, 2, 9]` at indices 2..5.\n\n**Two details worth internalising.**\n\n1. *The map is never cleaned.* At `right = 5` the entry `4:2` is stale for older positions but harmless, because the `last[value] >= left` guard decides relevance at query time. Deleting entries when the window shrinks would also work but costs more bookkeeping.\n\n2. *`left` only moves forward.* Run Example 4 (`[1, 2, 2, 1]`) through the same table: at `right = 2` the duplicate 2 pushes `left` to 2; at `right = 3` the value 1 has `last[1] = 0`, but `0 >= left = 2` is **false**, so `left` stays at 2 and the window is `[2, 1]` of length 2. Drop that guard and `left` would snap back to 1, producing a bogus window of length 3 that actually contains two 1's... in a longer array. That single comparison is the whole correctness argument for the amortised O(n) bound too, since `left` advances at most n times overall.",
+  "solutions": {
+   "python": "from typing import Dict, List\n\n\ndef longest_distinct_window(intents: List[int]) -> int:\n    \"\"\"Length of the longest contiguous block of pairwise-distinct values.\"\"\"\n    last_seen: Dict[int, int] = {}  # value -> most recent index where it occurred\n    left = 0\n    best = 0\n    for right, value in enumerate(intents):\n        prev = last_seen.get(value, -1)\n        if prev >= left:\n            # the duplicate is INSIDE the window: jump just past it (never backwards)\n            left = prev + 1\n        last_seen[value] = right\n        window_len = right - left + 1\n        if window_len > best:\n            best = window_len\n    return best\n",
+   "java": "import java.util.*;\n\npublic class Solution {\n    public int longestDistinctWindow(int[] intents) {\n        Map<Integer, Integer> lastSeen = new HashMap<>(); // value -> most recent index\n        int left = 0, best = 0;\n        for (int right = 0; right < intents.length; right++) {\n            int value = intents[right];\n            Integer prev = lastSeen.get(value);\n            if (prev != null && prev >= left) {\n                // duplicate lies inside the window: jump past it; prev < left means stale\n                left = prev + 1;\n            }\n            lastSeen.put(value, right);\n            best = Math.max(best, right - left + 1);\n        }\n        return best;\n    }\n}\n",
+   "cpp": "#include <vector>\n#include <unordered_map>\n#include <algorithm>\n\nclass Solution {\npublic:\n    int longestDistinctWindow(const std::vector<int>& intents) {\n        std::unordered_map<int, int> lastSeen;  // value -> most recent index\n        int left = 0, best = 0;\n        const int n = static_cast<int>(intents.size());\n        for (int right = 0; right < n; ++right) {\n            const int value = intents[right];\n            auto it = lastSeen.find(value);\n            if (it != lastSeen.end() && it->second >= left) {\n                // duplicate is inside the window: jump past it (stale entries are ignored)\n                left = it->second + 1;\n            }\n            lastSeen[value] = right;\n            best = std::max(best, right - left + 1);\n        }\n        return best;\n    }\n};\n"
+  },
+  "edgeCases": [
+   "Empty array -> 0 (the loop never runs; make sure best is initialised to 0, not to 1)",
+   "n == 1 -> 1",
+   "All elements equal -> 1, and left jumps on every single step",
+   "All elements distinct -> n, and left never moves",
+   "A repeated value whose previous occurrence is already outside the window ([1,2,2,1]) — the last[v] >= left guard is what keeps left from moving backwards",
+   "Values up to 10^9 (and possibly 0) -> must use a hash map, not a 26-slot or value-indexed array",
+   "Duplicates far apart ([1,2,3,1]) versus adjacent duplicates ([1,1,2,3]) exercise different branches",
+   "Answer realised at the very end of the array — best must be updated every iteration, not only when the window shrinks"
+  ],
+  "followUps": [
+   "Generalise to the longest window containing at most K distinct values. Which part of the state has to change from 'last index' to 'count'?",
+   "Return the actual window (start and end indices) rather than just its length, breaking ties by the smallest start.",
+   "Longest window in which at most one value is allowed to appear twice.",
+   "Streaming version: the array arrives one element at a time and you may store only O(K) state. What can you still guarantee?"
+  ],
+  "patternTakeaway": "A variable-size sliding window plus a last-seen index map keeps the validity invariant repairable in O(1) per step, so a single pass with only-forward pointer motion solves it in linear time."
+ },
+ {
+  "id": "ca-04",
+  "title": "Count Sessions With Target Engagement",
+  "difficulty": "medium",
+  "topics": [
+   "arrays",
+   "prefix sums",
+   "hash map",
+   "counting"
+  ],
+  "statement": "Every turn in an assistant session moves an engagement score by some amount, which may be **negative**. Given the per-turn deltas, count how many consecutive stretches of turns produced exactly `target` total change.\n\nGiven an integer array `delta` of length `n` and an integer `target`, return the number of **non-empty contiguous subarrays** whose sum equals `target`.\n\nTwo subarrays are different if their index ranges differ, even if their contents look identical.\n\n### Contract\n- Input: `delta` (`int[]`, values may be negative or zero), `target` (integer, may be negative or zero)\n- Output: the count of qualifying subarrays. The count can exceed the signed 32-bit range, so return a 64-bit integer in Java and C++ (Python `int` is unbounded).\n\n```\npython: def count_target_subarrays(delta: List[int], target: int) -> int\njava  : public long countTargetSubarrays(int[] delta, long target)\ncpp   : long long countTargetSubarrays(const std::vector<int>& delta, long long target)\n```",
+  "examples": [
+   {
+    "input": "delta = [1, 2, -1, 2, 1], target = 3",
+    "output": "3",
+    "explanation": "Three index ranges sum to 3: indices 0..1 = 1 + 2 = 3; indices 1..3 = 2 + (-1) + 2 = 3; indices 3..4 = 2 + 1 = 3. Everything else misses: the whole array sums to 5, indices 0..2 sum to 2, indices 2..4 sum to 2, and no single element equals 3."
+   },
+   {
+    "input": "delta = [0, 0, 0], target = 0",
+    "output": "6",
+    "explanation": "Every non-empty contiguous range sums to 0: three of length 1, two of length 2, one of length 3, so 3 + 2 + 1 = 6. This is why the hash map must store COUNTS of each prefix value rather than merely whether it has been seen."
+   },
+   {
+    "input": "delta = [-1, -1, 1], target = -2",
+    "output": "1",
+    "explanation": "Only indices 0..1 give (-1) + (-1) = -2. Ranges 1..2 and 0..2 give 0 and -1, and no single element equals -2. Negative targets and negative values are both legal."
+   }
+  ],
+  "constraints": [
+   "1 <= n <= 2 * 10^5",
+   "-10^4 <= delta[i] <= 10^4 (values may be negative or zero)",
+   "-10^9 <= target <= 10^9",
+   "Prefix sums range over roughly +/- 2 * 10^9, which does NOT fit in signed 32-bit — use 64-bit for the running sum and for map keys",
+   "The answer can be as large as n(n+1)/2, about 2 * 10^10, which does NOT fit in signed 32-bit either",
+   "Subarrays must be non-empty and contiguous; expected time is O(n)"
+  ],
+  "hints": [
+   "Write P[k] for the sum of the first k elements, with P[0] = 0. Then sum(delta[i..j]) = P[j+1] - P[i]. So 'this subarray sums to target' is really 'two prefix values differ by exactly target' — that is a pairing question, not a scanning question.",
+   "Sweep left to right keeping the running prefix sum, plus a hash map from prefix value -> how many times that value has occurred so far. Note that a sliding window or two pointers will NOT work here: with negative values the running sum is not monotonic, so shrinking the window can increase the sum.",
+   "`count = {0: 1}` (one empty prefix, which is what lets subarrays starting at index 0 be counted), `running = 0`, `ans = 0`. For each value v: `running += v`; then `ans += count.get(running - target, 0)`; then `count[running] += 1`. The order matters — query BEFORE inserting the current prefix, otherwise when target == 0 you would match the prefix against itself and count empty subarrays."
+  ],
+  "bruteForce": {
+   "idea": "Two nested loops: for each start i, walk j from i to n-1 accumulating a running sum and increment the answer whenever it equals target. (The truly naive triple loop re-sums each range from scratch.)",
+   "time": "O(n^2) with the running-sum trick, O(n^3) fully naive",
+   "space": "O(1)"
+  },
+  "optimal": {
+   "idea": "One pass maintaining the running prefix sum and a hash map of prefix-sum frequencies. At each index, the number of subarrays ending here with sum target equals how many earlier prefixes had the value running - target.",
+   "time": "O(n) expected",
+   "space": "O(n) for the frequency map"
+  },
+  "walkthrough": "**Optimal prefix-sum dry run on Example 1** — `delta = [1, 2, -1, 2, 1]`, `target = 3`.\n\nInitial state: `running = 0`, `ans = 0`, `count = {0: 1}`. That seeded entry represents the empty prefix; without it, no subarray starting at index 0 could ever be counted.\n\n| idx | v | running (prefix ending here) | need = running - target | count[need] before insert | ans after | count after inserting `running` |\n|-----|-----|------------------------------|-------------------------|---------------------------|-----------|----------------------------------|\n| 0 | 1 | 1 | 1 - 3 = -2 | 0 (absent) | 0 | `{0:1, 1:1}` |\n| 1 | 2 | 3 | 3 - 3 = 0 | **1** | 1 | `{0:1, 1:1, 3:1}` |\n| 2 | -1 | 2 | 2 - 3 = -1 | 0 (absent) | 1 | `{0:1, 1:1, 3:1, 2:1}` |\n| 3 | 2 | 4 | 4 - 3 = 1 | **1** | 2 | `{0:1, 1:1, 3:1, 2:1, 4:1}` |\n| 4 | 1 | 5 | 5 - 3 = 2 | **1** | **3** | `{0:1, 1:1, 3:1, 2:1, 4:1, 5:1}` |\n\nAnswer: `3`.\n\n**Reading the three hits back into subarrays.**\n- idx 1: `need = 0` was the seeded empty prefix, i.e. the subarray starts at index 0 -> range 0..1 = `[1, 2]`.\n- idx 3: `need = 1` was the prefix after index 0, so the subarray starts at index 1 -> range 1..3 = `[2, -1, 2]`.\n- idx 4: `need = 2` was the prefix after index 2, so the subarray starts at index 3 -> range 3..4 = `[2, 1]`.\n\nThose are exactly the three ranges listed in the example.\n\n**Why query-then-insert.** Take `target = 0` and a single element `[0]`. Running becomes 0; `need = 0 - 0 = 0`. If you had already inserted the current prefix, `count[0]` would be 2 and you would report 2 — counting the empty subarray. Querying first gives `count[0] = 1` (the seed only) and the correct answer 1.\n\n**Why not a sliding window.** At idx 2 the running sum *decreases* from 3 to 2. With non-monotonic sums there is no valid \"shrink from the left when too big\" rule, which is precisely why the hash map of prefixes is needed instead.",
+  "solutions": {
+   "python": "from typing import Dict, List\n\n\ndef count_target_subarrays(delta: List[int], target: int) -> int:\n    \"\"\"Number of non-empty contiguous subarrays of delta summing exactly to target.\"\"\"\n    count: Dict[int, int] = {0: 1}  # seed the empty prefix so ranges starting at 0 count\n    running = 0\n    ans = 0\n    for v in delta:\n        running += v\n        # every earlier prefix equal to (running - target) closes a valid subarray here\n        ans += count.get(running - target, 0)  # QUERY before inserting the current prefix\n        count[running] = count.get(running, 0) + 1\n    return ans\n",
+   "java": "import java.util.*;\n\npublic class Solution {\n    public long countTargetSubarrays(int[] delta, long target) {\n        // keys are 64-bit: prefix sums reach +/- 2 * 10^9 and would overflow int\n        Map<Long, Integer> count = new HashMap<>();\n        count.put(0L, 1); // the empty prefix\n        long running = 0L;\n        long ans = 0L;    // answer can reach ~2 * 10^10, so it must be long\n        for (int v : delta) {\n            running += v;\n            ans += count.getOrDefault(running - target, 0); // QUERY before inserting\n            count.merge(running, 1, Integer::sum);\n        }\n        return ans;\n    }\n}\n",
+   "cpp": "#include <vector>\n#include <unordered_map>\n\nclass Solution {\npublic:\n    long long countTargetSubarrays(const std::vector<int>& delta, long long target) {\n        // 64-bit keys: prefix sums reach +/- 2 * 10^9\n        std::unordered_map<long long, int> count;\n        count[0] = 1;  // the empty prefix\n        long long running = 0;\n        long long ans = 0;  // answer can reach ~2 * 10^10\n        for (int v : delta) {\n            running += v;\n            auto it = count.find(running - target);\n            if (it != count.end()) {\n                ans += it->second;  // QUERY before inserting the current prefix\n            }\n            ++count[running];\n        }\n        return ans;\n    }\n};\n"
+  },
+  "edgeCases": [
+   "target == 0 combined with zeros in the array -> huge answers; the map must hold counts, not a set of seen values",
+   "Forgetting the seed count[0] = 1 -> every subarray starting at index 0 is missed",
+   "Inserting the current prefix before querying -> empty subarrays get counted when target == 0",
+   "All negative values, and negative targets",
+   "n == 1 -> answer is 1 if delta[0] == target, else 0",
+   "No subarray matches -> 0",
+   "Prefix sums overflow signed 32-bit (n = 2*10^5 times 10^4 = 2*10^9) -> use 64-bit running sums and keys",
+   "The answer itself overflows signed 32-bit for adversarial all-zero input -> 64-bit return type",
+   "Repeated prefix values are the entire point: the map counts multiplicities, it does not deduplicate"
+  ],
+  "followUps": [
+   "Return the LENGTH of the longest subarray summing to target instead of the count. Which value do you store in the map, and does the update rule change?",
+   "Count subarrays whose sum is divisible by K. What becomes the map key?",
+   "If every delta[i] were strictly positive, a sliding window would work in O(n) time and O(1) space. Explain precisely which property makes that valid and why it fails here.",
+   "Count subarrays with sum strictly less than target — why does the hash map stop working, and what data structure replaces it?"
+  ],
+  "patternTakeaway": "Convert 'subarray sum equals X' into 'a pair of prefix sums differing by X', then answer it in one pass with a hash map of prefix-sum frequencies."
+ },
+ {
+  "id": "ca-05",
+  "title": "Merge Campaign Visibility Windows",
+  "difficulty": "medium",
+  "topics": [
+   "arrays",
+   "sorting",
+   "intervals",
+   "greedy sweep"
+  ],
+  "statement": "A brand runs ad campaigns, each covering a closed time window. To a viewer, windows that overlap — or that merely touch end-to-start — are indistinguishable, so the dashboard displays them merged.\n\nYou are given `windows`, an array of `n` closed intervals `[start, end]` with `start <= end`. Merge every group of intervals that **overlap or touch** (`[1, 3]` and `[3, 5]` merge into `[1, 5]`) and return the merged intervals **sorted by start ascending**.\n\nThe input is **not** sorted, may contain nested intervals, and may contain duplicates.\n\n### Contract\n- Input: `windows`, an `n x 2` integer array of `[start, end]` pairs with `start <= end`\n- Output: an `m x 2` array sorted by `start` ascending, in which no two intervals overlap or touch\n\n```\npython: def merge_windows(windows: List[List[int]]) -> List[List[int]]\njava  : public int[][] mergeWindows(int[][] windows)\ncpp   : std::vector<std::vector<int>> mergeWindows(std::vector<std::vector<int>> windows)\n```",
+  "examples": [
+   {
+    "input": "windows = [[8, 10], [1, 3], [2, 6], [15, 18]]",
+    "output": "[[1, 6], [8, 10], [15, 18]]",
+    "explanation": "Sorted by start the input becomes [1,3], [2,6], [8,10], [15,18]. [1,3] and [2,6] overlap because 2 <= 3, so they merge into [1, max(3,6)] = [1,6]. Then 8 > 6, so [8,10] opens a new group; 15 > 10, so [15,18] opens another. Three groups remain."
+   },
+   {
+    "input": "windows = [[1, 4], [4, 5]]",
+    "output": "[[1, 5]]",
+    "explanation": "The windows touch exactly at time 4. The problem defines touching as merging, so the test must be start <= curEnd (not <). Using a strict < would wrongly return [[1,4],[4,5]]."
+   },
+   {
+    "input": "windows = [[1, 4], [2, 3]]",
+    "output": "[[1, 4]]",
+    "explanation": "The second window is entirely nested inside the first. When merging you must take max(curEnd, e) = max(4, 3) = 4; blindly assigning curEnd = e would shrink the group to [1,3] and lose coverage."
+   }
+  ],
+  "constraints": [
+   "1 <= n <= 10^5",
+   "0 <= start <= end <= 10^9 for every interval (intervals are closed and never inverted)",
+   "The input is in arbitrary order — sorting is mandatory",
+   "Intervals may be nested, identical, or zero-length (start == end)",
+   "Touching intervals ([a,b] and [b,c]) MUST merge",
+   "Output must be sorted by start ascending, and no two output intervals may overlap or touch"
+  ],
+  "hints": [
+   "Once the intervals are ordered by start, an interval can only ever collide with the group you are currently building — never with a group you already closed. Convince yourself why: if a later interval reached back into a closed group, what would that say about its start?",
+   "Sort by start, then sweep once carrying a single 'current' interval [curStart, curEnd]. For each interval you only decide one thing: does it extend the current group, or does it open a new one?",
+   "Sort ascending by start. Set cur = first interval. For each following [s, e]: if `s <= curEnd` they belong to the same group, so `curEnd = max(curEnd, e)` (the max is required for nested intervals); otherwise push cur to the output and set cur = [s, e]. After the loop, push the final cur — forgetting this flush drops the last group. Use `<=` so touching merges."
+  ],
+  "bruteForce": {
+   "idea": "Repeatedly scan all pairs; whenever two intervals overlap or touch, replace them with their union and restart the scan. Stop when a full pass produces no merge.",
+   "time": "O(n^3) worst case (up to n merging rounds, each an O(n^2) pairwise scan)",
+   "space": "O(n)"
+  },
+  "optimal": {
+   "idea": "Sort by start, then perform one linear sweep holding a single running interval, emitting it whenever the next interval starts strictly after the running end.",
+   "time": "O(n log n), dominated by the sort; the sweep itself is O(n)",
+   "space": "O(n) for the output, O(1) auxiliary beyond the sort"
+  },
+  "walkthrough": "**Optimal sort-then-sweep dry run on Example 1** — `windows = [[8,10], [1,3], [2,6], [15,18]]`.\n\n**Step 1 — sort by start:** `[[1,3], [2,6], [8,10], [15,18]]`. This is the step that makes everything else local.\n\n**Step 2 — initialise:** `cur = [curStart, curEnd] = [1, 3]`, `output = []`.\n\n**Step 3 — sweep the remaining intervals:**\n\n| interval [s, e] | test `s <= curEnd` | decision | cur after | output after |\n|-----------------|--------------------|----------|-----------|--------------|\n| [2, 6] | 2 <= 3 -> true | merge: `curEnd = max(3, 6) = 6` | [1, 6] | [] |\n| [8, 10] | 8 <= 6 -> false | close the group: push [1,6], start fresh | [8, 10] | [[1,6]] |\n| [15, 18] | 15 <= 10 -> false | close the group: push [8,10], start fresh | [15, 18] | [[1,6], [8,10]] |\n\n**Step 4 — final flush:** the loop ended with `cur = [15, 18]` still open, so push it.\n\n`output = [[1,6], [8,10], [15,18]]`.\n\n**Why sorting makes the sweep correct.** After sorting, every later interval has `s >= curStart`. So if `s > curEnd`, that interval starts after the entire current group ends — and since all intervals after it start even later, nothing left can touch the group. It is therefore safe to close the group permanently and never look back. That is the whole proof, and it is why one pass suffices.\n\n**Where the two classic bugs would bite.** On row 1, writing `curEnd = e` instead of `max(curEnd, e)` happens to be fine (6 > 3), but on Example 3 (`[[1,4],[2,3]]`) it would produce `[1,3]` and lose coverage. And if the final flush in step 4 were missing, the output would stop at `[[1,6],[8,10]]` and silently drop the last window.",
+  "solutions": {
+   "python": "from typing import List\n\n\ndef merge_windows(windows: List[List[int]]) -> List[List[int]]:\n    \"\"\"Merge overlapping or touching closed intervals; result is sorted by start.\"\"\"\n    if not windows:\n        return []\n    ordered = sorted(windows, key=lambda w: w[0])  # sort by start; copy, do not mutate input\n    merged: List[List[int]] = []\n    cur_start, cur_end = ordered[0]\n    for s, e in ordered[1:]:\n        if s <= cur_end:\n            # '<=' makes touching intervals merge; max() is required for nested intervals\n            cur_end = max(cur_end, e)\n        else:\n            merged.append([cur_start, cur_end])  # nothing later can reach this group\n            cur_start, cur_end = s, e\n    merged.append([cur_start, cur_end])  # flush the last open group\n    return merged\n",
+   "java": "import java.util.*;\n\npublic class Solution {\n    public int[][] mergeWindows(int[][] windows) {\n        if (windows.length == 0) {\n            return new int[0][0];\n        }\n        // sort by start; comparison by subtraction could overflow, so use Integer.compare\n        Arrays.sort(windows, (a, b) -> Integer.compare(a[0], b[0]));\n        List<int[]> merged = new ArrayList<>();\n        int curStart = windows[0][0], curEnd = windows[0][1];\n        for (int i = 1; i < windows.length; i++) {\n            int s = windows[i][0], e = windows[i][1];\n            if (s <= curEnd) {\n                // '<=' merges touching intervals; max handles nested ones\n                curEnd = Math.max(curEnd, e);\n            } else {\n                merged.add(new int[]{curStart, curEnd}); // group is final\n                curStart = s;\n                curEnd = e;\n            }\n        }\n        merged.add(new int[]{curStart, curEnd}); // flush the last open group\n        return merged.toArray(new int[0][]);\n    }\n}\n",
+   "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    // taken by value so the caller's vector is not reordered\n    std::vector<std::vector<int>> mergeWindows(std::vector<std::vector<int>> windows) {\n        if (windows.empty()) {\n            return {};\n        }\n        std::sort(windows.begin(), windows.end(),\n                  [](const std::vector<int>& a, const std::vector<int>& b) {\n                      return a[0] < b[0];  // sort by start\n                  });\n        std::vector<std::vector<int>> merged;\n        int curStart = windows[0][0], curEnd = windows[0][1];\n        for (std::size_t i = 1; i < windows.size(); ++i) {\n            const int s = windows[i][0], e = windows[i][1];\n            if (s <= curEnd) {\n                // '<=' merges touching intervals; max handles nested ones\n                curEnd = std::max(curEnd, e);\n            } else {\n                merged.push_back({curStart, curEnd});  // group is final\n                curStart = s;\n                curEnd = e;\n            }\n        }\n        merged.push_back({curStart, curEnd});  // flush the last open group\n        return merged;\n    }\n};\n"
+  },
+  "edgeCases": [
+   "n == 1 -> the single interval is returned unchanged (and the final flush is the only output step)",
+   "All intervals identical -> collapses to one interval",
+   "One interval containing all the others -> forgetting max(curEnd, e) silently shrinks coverage",
+   "Exactly touching endpoints, [1,2] and [2,3] -> must merge into [1,3]; a strict '<' test fails here",
+   "Zero-length intervals such as [5,5], including [5,5] next to [5,9]",
+   "Completely disjoint input that is already sorted -> output equals the input",
+   "Input given in reverse or random order -> sorting is not optional",
+   "Missing the final flush after the loop -> the last group is dropped",
+   "Coordinates up to 10^9: never sort by (a[0] - b[0]) in Java/C++, as the subtraction can overflow",
+   "Mutating the caller's array by sorting in place may be unacceptable — sort a copy if the contract forbids it"
+  ],
+  "followUps": [
+   "Given an ALREADY merged, sorted list, insert one new interval and re-merge in O(n) without re-sorting.",
+   "Return the total covered length (the measure of the union) instead of the intervals themselves.",
+   "Find the minimum number of intervals to remove so that none of the remainder overlap — which endpoint do you sort by now, and why does that change?",
+   "Handle half-open intervals [start, end) instead. Which single comparison changes?"
+  ],
+  "patternTakeaway": "Sorting by one endpoint converts a global 'which pairs overlap' question into a local one: after sorting, each item need only be compared against the single group currently open."
+ },
+ {
+  "id": "ca-06",
+  "title": "Best Visibility Streak With One Skipped Day",
+  "difficulty": "hard",
+  "topics": [
+   "arrays",
+   "dynamic programming",
+   "kadane",
+   "max subarray variants"
+  ],
+  "statement": "A creator's daily visibility score can rise or fall. You must report the best possible contiguous run of days, with one concession: you may **drop at most one** day from inside that run, so a single bad outlier can be excluded. The run must still contain **at least one day** after the drop.\n\nGiven an integer array `scores` of length `n >= 1`, choose a non-empty contiguous subarray and optionally delete **exactly one** element from it (keeping the remainder non-empty). Return the maximum achievable sum.\n\nDeleting is optional — if no deletion helps, the answer is simply the ordinary maximum subarray sum. Deleting is also not always possible: a run of length 1 cannot be reduced further.\n\n### Contract\n- Input: `scores`, a non-empty integer array (values may be negative)\n- Output: a single integer — the maximum sum over all legal choices\n\n```\npython: def max_run_with_one_skip(scores: List[int]) -> int\njava  : public long maxRunWithOneSkip(int[] scores)\ncpp   : long long maxRunWithOneSkip(const std::vector<int>& scores)\n```",
+  "examples": [
+   {
+    "input": "scores = [1, -2, 0, 3]",
+    "output": "4",
+    "explanation": "Take the whole array and delete the -2, leaving 1 + 0 + 3 = 4. Without any deletion the best contiguous run is [0, 3] or [3], worth only 3, so the deletion is what buys the extra point. Deleting any other single element does worse: dropping 1 gives 3, dropping 0 gives 2 (from [1,-2,3] = 2), dropping 3 gives -1."
+   },
+   {
+    "input": "scores = [2, 1, -5, 4, -3, 2]",
+    "output": "7",
+    "explanation": "Take the run [2, 1, -5, 4] and delete -5, leaving 2 + 1 + 4 = 7. Alternatives are worse: without deletion the best run is [4] worth 4; deleting -3 from [4, -3, 2] gives 6; deleting -5 from the entire array gives 2 + 1 + 4 - 3 + 2 = 6. The optimal answer stops the run before the trailing -3."
+   },
+   {
+    "input": "scores = [-1, -1, -1]",
+    "output": "-1",
+    "explanation": "Every run is negative. A run of length 2 with one deletion leaves a single -1, and a longer run with one deletion is still at most -2. You may not delete the last remaining element, so the best you can do is a single day: -1. This is why the 'deletion used' state must start at negative infinity, not at 0."
+   }
+  ],
+  "constraints": [
+   "1 <= n <= 10^5",
+   "-10^4 <= scores[i] <= 10^4 (values may be negative)",
+   "The chosen run must be contiguous and non-empty BOTH before and after the optional deletion",
+   "At most one element may be deleted, and deleting is optional",
+   "Sums stay within about +/- 10^9, so 32-bit arithmetic would fit — but the sentinel for the 'deletion used' state must not underflow",
+   "Expected time O(n) and O(1) extra space"
+  ],
+  "hints": [
+   "Fix the right end of the run at index i. There are exactly two kinds of best run ending at i: one where you have not spent your deletion yet, and one where you already have. Every longer run is built from one of those two by one more step, so track both.",
+   "Run two rolling Kadane states side by side: `keep` = best sum of a run ending exactly at i using no deletion, and `drop` = best sum of a run ending exactly at i having already used the single deletion. The answer is the maximum of both states over all i.",
+   "Initialise `keep = scores[0]`, `drop = NEGATIVE_SENTINEL` (with one element you cannot delete and stay non-empty), `best = scores[0]`. For each i >= 1: `newDrop = max(keep, drop + scores[i])` — the first branch deletes scores[i] and reuses the no-deletion run ending at i-1, the second extends a run whose deletion is already spent. `newKeep = max(scores[i], keep + scores[i])`. Assign both AFTER computing both (newDrop must read the OLD keep), then `best = max(best, keep, drop)`."
+  ],
+  "bruteForce": {
+   "idea": "Enumerate all O(n^2) contiguous runs; for each, maintain a running sum and a running minimum element, and consider both the plain sum and (sum - minimum) when the run has length >= 2. Keep the best legal value.",
+   "time": "O(n^2) with running sum and running min (O(n^3) if you re-scan each run to decide which element to delete)",
+   "space": "O(1)"
+  },
+  "optimal": {
+   "idea": "Two-state Kadane: one scalar for 'no deletion used' and one for 'deletion already used', both updated in O(1) per element in a single left-to-right pass.",
+   "time": "O(n)",
+   "space": "O(1)"
+  },
+  "walkthrough": "**Optimal two-state Kadane dry run on Example 1** — `scores = [1, -2, 0, 3]`.\n\nState meanings at index i:\n- `keep` = best sum of a contiguous run **ending at i** with **no** deletion used;\n- `drop` = best sum of a contiguous run **ending at i** with the one deletion **already spent** (and the remainder non-empty).\n\nInitialisation at i = 0: `keep = 1`, `drop = -INF` (a run of one element cannot afford a deletion), `best = 1`.\n\n| i | scores[i] | newDrop = max(old keep, old drop + scores[i]) | newKeep = max(scores[i], old keep + scores[i]) | keep | drop | best | which run this represents |\n|---|-----------|-----------------------------------------------|------------------------------------------------|------|------|------|---------------------------|\n| 0 | 1 | — (init) | — (init) | 1 | -INF | 1 | run `[1]`, nothing deleted |\n| 1 | -2 | max(**1**, -INF + (-2)) = 1 | max(-2, 1 + (-2)) = -1 | -1 | 1 | 1 | drop = run `[1, -2]` with -2 deleted -> `[1]` = 1 |\n| 2 | 0 | max(**-1**, 1 + 0) = 1 | max(0, -1 + 0) = 0 | 0 | 1 | 1 | drop = run `[1, -2, 0]` with -2 deleted -> `[1, 0]` = 1 |\n| 3 | 3 | max(**0**, 1 + 3) = 4 | max(3, 0 + 3) = 3 | 3 | 4 | **4** | drop = run `[1, -2, 0, 3]` with -2 deleted -> `[1, 0, 3]` = 4 |\n\nAnswer: `best = 4`.\n\n**Read the two branches of `newDrop` carefully.** At i = 3 the winner was `drop + scores[3] = 1 + 3 = 4`: the deletion was spent back at index 1, and we simply extended that run by the value 3. At i = 1 the winner was the other branch, `old keep = 1`: there we chose to delete `scores[1] = -2` itself and inherit the deletion-free run `[1]` ending at index 0. Because that branch reads `keep` from index i-1, it is automatically non-empty — which is exactly the non-emptiness guarantee the statement demands.\n\n**The order-of-assignment trap.** `newDrop` must be computed from the **old** `keep`. If you overwrite `keep` first and then compute `drop` from the new value, at i = 3 you would get `max(3, 1 + 3) = 4` by luck here, but in general it means \"delete scores[i] from a run that already contains scores[i]\" — double counting. Compute both new values, then assign both.\n\n**The sentinel trap.** Run Example 3 (`[-1, -1, -1]`) through the same recurrence: at i = 1, `newDrop = max(-1, -INF + (-1)) = -1` and `newKeep = max(-1, -1 + -1) = -1`, so `best` stays -1 throughout. Had `drop` been initialised to 0 instead of -INF, `drop` at i = 1 would be `max(-1, 0 + -1) = -1` — still fine here — but with `scores = [-5]` a 0 initial value combined with an answer taken over `drop` would wrongly report 0 for an empty run. Start `drop` at a large negative sentinel (not the type minimum, or `drop + scores[i]` underflows).",
+  "solutions": {
+   "python": "from typing import List\n\n\ndef max_run_with_one_skip(scores: List[int]) -> int:\n    \"\"\"Max sum of a non-empty contiguous run, optionally deleting one element from it.\"\"\"\n    NEG = -(10 ** 18)  # sentinel: 'deletion already used' is impossible for a 1-element run\n    keep = scores[0]   # best run ending here, no deletion used\n    drop = NEG         # best run ending here, deletion already spent\n    best = scores[0]\n    for v in scores[1:]:\n        # branch 1: delete v itself and inherit the deletion-free run ending just before\n        # branch 2: the deletion is already spent, so simply extend by v\n        new_drop = max(keep, drop + v)\n        new_keep = max(v, keep + v)          # ordinary Kadane step\n        keep, drop = new_keep, new_drop      # assign together: new_drop used the OLD keep\n        best = max(best, keep, drop)\n    return best\n",
+   "java": "public class Solution {\n    public long maxRunWithOneSkip(int[] scores) {\n        // safe sentinel: dividing by 4 guarantees NEG + scores[i] cannot underflow\n        final long NEG = Long.MIN_VALUE / 4;\n        long keep = scores[0]; // best run ending here, no deletion used\n        long drop = NEG;       // best run ending here, deletion already spent\n        long best = scores[0];\n        for (int i = 1; i < scores.length; i++) {\n            long v = scores[i];\n            // branch 1: delete v and inherit the deletion-free run ending at i-1 (non-empty)\n            // branch 2: deletion already spent, extend that run by v\n            long newDrop = Math.max(keep, drop + v);\n            long newKeep = Math.max(v, keep + v);   // ordinary Kadane step\n            keep = newKeep;                          // assign only after BOTH are computed\n            drop = newDrop;\n            best = Math.max(best, Math.max(keep, drop));\n        }\n        return best;\n    }\n}\n",
+   "cpp": "#include <vector>\n#include <algorithm>\n#include <climits>\n\nclass Solution {\npublic:\n    long long maxRunWithOneSkip(const std::vector<int>& scores) {\n        // safe sentinel: /4 guarantees NEG + scores[i] cannot underflow\n        const long long NEG = LLONG_MIN / 4;\n        long long keep = scores[0];  // best run ending here, no deletion used\n        long long drop = NEG;        // best run ending here, deletion already spent\n        long long best = scores[0];\n        for (std::size_t i = 1; i < scores.size(); ++i) {\n            const long long v = scores[i];\n            // branch 1: delete v and inherit the deletion-free run ending at i-1\n            // branch 2: deletion already spent, extend that run by v\n            const long long newDrop = std::max(keep, drop + v);\n            const long long newKeep = std::max(v, keep + v);  // ordinary Kadane step\n            keep = newKeep;   // assign only after BOTH are computed\n            drop = newDrop;\n            best = std::max(best, std::max(keep, drop));\n        }\n        return best;\n    }\n};\n"
+  },
+  "edgeCases": [
+   "n == 1 -> the answer is scores[0]; no deletion is legal because it would empty the run",
+   "All values negative -> the answer is the largest single element; drop must start at -INF, never at 0",
+   "All values positive -> the answer is the total sum and the deletion is never used",
+   "Exactly one negative surrounded by positives -> the deletion fires only if both flanks together outweigh it ([5,-1,5] gives 10, but [1,-9,1] gives 2 by deleting -9, versus 1 without)",
+   "Order-of-update bug: computing drop from the NEW keep double counts the current element",
+   "Sentinel arithmetic: drop + scores[i] with drop = Long.MIN_VALUE underflows to a huge positive; use MIN/4 or a -1e18 style sentinel",
+   "best must be seeded with scores[0] and updated from BOTH states each iteration, not only from keep",
+   "A run whose optimum stops early (Example 2 excludes the trailing -3) — the answer is a max over all i, not the state at the last index"
+  ],
+  "followUps": [
+   "Generalise to at most K deletions. What does the DP state become, and what is the new complexity?",
+   "Allow deleting one contiguous BLOCK of any length instead of a single element. Does two-state Kadane still apply?",
+   "Return the actual run boundaries and the index of the deleted element, not just the sum.",
+   "Solve the circular version, where the run may wrap around from the end of the array to the beginning."
+  ],
+  "patternTakeaway": "When a linear scan is allowed one 'exception', duplicate the Kadane state — one track that has not used the exception and one that has — and let each step decide whether to spend it."
+ }
+]

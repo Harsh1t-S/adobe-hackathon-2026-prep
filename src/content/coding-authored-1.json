@@ -1,0 +1,322 @@
+[
+  {
+    "id": "cb-01",
+    "title": "Minimum Insertions to Balance Brackets",
+    "difficulty": "easy",
+    "topics": ["Stack", "Greedy", "Strings"],
+    "statement": "You are given a string `s` containing only the characters `'('` and `')'`.\n\nIn one move you may insert a single `'('` or `')'` anywhere in the string.\n\nReturn the **minimum number of insertions** needed to make `s` balanced. A string is balanced when every opening bracket has a matching closing bracket that appears after it, and every closing bracket has a matching opening bracket before it.\n\n**Input:** a single string `s`.\n**Output:** a single integer — the minimum number of insertions.",
+    "examples": [
+      { "input": "s = \"())\"", "output": "1", "explanation": "One unmatched ')' at the end. Insert one '(' at the front to get \"(())\"." },
+      { "input": "s = \"(((\"", "output": "3", "explanation": "Three unmatched '(' — each needs a closing bracket, so 3 insertions." },
+      { "input": "s = \"()\"", "output": "0", "explanation": "Already balanced." }
+    ],
+    "constraints": ["0 <= s.length <= 10^5", "s consists only of '(' and ')'"],
+    "hints": [
+      "You never actually need the stack itself — you only ever need to know *how many* unmatched brackets you are carrying. That means one or two integer counters is enough.",
+      "Walk left to right holding `open`, the number of '(' seen so far that are still unmatched. On ')' you either cancel one open bracket, or — if there is none — you have found a ')' that can never be matched. Count those separately.",
+      "At the end, `needOpen` (the count of unmatchable ')') plus `open` (the '(' left over with nothing to close them) is the answer. Both kinds of leftover cost exactly one insertion each."
+    ],
+    "bruteForce": {
+      "idea": "Repeatedly scan the string looking for an adjacent \"()\" pair, delete it, and restart. Whatever remains is unmatched, and its length is the answer. Correct, but every deletion triggers a fresh O(n) scan.",
+      "time": "O(n^2)",
+      "space": "O(n)"
+    },
+    "optimal": {
+      "idea": "Single left-to-right pass with two counters. `open` tracks unmatched '(' still available to be closed; `need` tracks ')' encountered with no '(' available. Every ')' either consumes an open bracket or increments `need`. The answer is `need + open`.",
+      "time": "O(n)",
+      "space": "O(1)"
+    },
+    "walkthrough": "Trace `s = \"())\"` with `open = 0`, `need = 0`.\n\n| char | before | action | after |\n|---|---|---|---|\n| `(` | open=0, need=0 | it is an opener → `open++` | open=1, need=0 |\n| `)` | open=1, need=0 | open>0 so it matches → `open--` | open=0, need=0 |\n| `)` | open=0, need=0 | no open bracket to match → `need++` | open=0, need=1 |\n\nEnd of string: `need = 1` (one ')' that needs a '(' inserted before it) and `open = 0` (no leftover openers). Answer = `1 + 0 = 1`.\n\nNotice why the greedy is safe: a ')' with `open == 0` can *never* be matched by anything to its right, because matching brackets must open first. So its cost is fixed at the moment you see it, and committing immediately is optimal.",
+    "solutions": {
+      "python": "def min_insertions(s: str) -> int:\n    open_count = 0   # '(' seen so far that are still unmatched\n    need = 0         # ')' seen with no '(' available to match them\n    for ch in s:\n        if ch == '(':\n            open_count += 1\n        else:\n            if open_count > 0:\n                open_count -= 1   # this ')' cancels an earlier '('\n            else:\n                need += 1         # unmatchable ')' - needs a '(' inserted\n    # leftover '(' each need a ')', leftover ')' each need a '('\n    return need + open_count",
+      "java": "class Solution {\n    public int minInsertions(String s) {\n        int open = 0;   // '(' seen so far that are still unmatched\n        int need = 0;   // ')' seen with no '(' available to match them\n        for (int i = 0; i < s.length(); i++) {\n            char ch = s.charAt(i);\n            if (ch == '(') {\n                open++;\n            } else if (open > 0) {\n                open--;      // this ')' cancels an earlier '('\n            } else {\n                need++;      // unmatchable ')' - needs a '(' inserted\n            }\n        }\n        return need + open;\n    }\n}",
+      "cpp": "#include <string>\n\nclass Solution {\npublic:\n    int minInsertions(const std::string& s) {\n        int open = 0;   // '(' seen so far that are still unmatched\n        int need = 0;   // ')' seen with no '(' available to match them\n        for (char ch : s) {\n            if (ch == '(') {\n                ++open;\n            } else if (open > 0) {\n                --open;     // this ')' cancels an earlier '('\n            } else {\n                ++need;     // unmatchable ')' - needs a '(' inserted\n            }\n        }\n        return need + open;\n    }\n};"
+    },
+    "edgeCases": [
+      "Empty string → 0",
+      "All openers \"((((\" → n",
+      "All closers \"))))\" → n",
+      "Already balanced \"(())()\" → 0",
+      "Interleaved \")(\" → 2, not 0 — order matters, a stack-free counter still gets this right"
+    ],
+    "followUps": [
+      "What changes if a ')' must be matched by two '(' (the 'balance with doubled brackets' variant)?",
+      "How would you also return one valid balanced string, not just the count?",
+      "Extend to three bracket types — why does the counter trick stop working and force a real stack?"
+    ],
+    "patternTakeaway": "When a stack only ever holds copies of one identical symbol, replace it with an integer counter — same logic, O(1) space."
+  },
+  {
+    "id": "cb-02",
+    "title": "Top K Most Cited Sources",
+    "difficulty": "medium",
+    "topics": ["Hash Map", "Heap", "Bucket Sort"],
+    "statement": "An analytics pipeline logs which source domain an AI assistant cited on each answer it produced. You are given an array `sources` of domain strings and an integer `k`.\n\nReturn the `k` domains that were cited most often, in **descending order of citation count**. If two domains have the same count, order them lexicographically ascending.\n\n**Input:** array of strings `sources`, integer `k`.\n**Output:** an array of exactly `k` strings.",
+    "examples": [
+      { "input": "sources = [\"a.com\",\"b.com\",\"a.com\",\"c.com\",\"b.com\",\"a.com\"], k = 2", "output": "[\"a.com\",\"b.com\"]", "explanation": "a.com appears 3 times, b.com twice, c.com once. Top 2 by count." },
+      { "input": "sources = [\"x.io\",\"y.io\"], k = 2", "output": "[\"x.io\",\"y.io\"]", "explanation": "Both appear once, so the tie is broken lexicographically: \"x.io\" < \"y.io\"." }
+    ],
+    "constraints": ["1 <= sources.length <= 10^5", "1 <= k <= number of distinct domains", "each domain string has length <= 40"],
+    "hints": [
+      "Two separate jobs: count occurrences, then select the largest k counts. Solve them with two different structures rather than trying to do both at once.",
+      "Counting is a hash map from domain to frequency. For the selection, you do not need the whole thing sorted — you only need the top k, which is exactly what a size-k min-heap gives you.",
+      "Push each (count, domain) pair into a min-heap; whenever the heap exceeds size k, pop the smallest. The k survivors are your answer — but remember to apply the tie-break rule consistently in *both* the heap comparator and the final sort."
+    ],
+    "bruteForce": {
+      "idea": "Count into a hash map, dump all distinct pairs into a list, fully sort the list by (count desc, domain asc), take the first k. Perfectly acceptable in an interview and often fast enough.",
+      "time": "O(d log d) where d = number of distinct domains",
+      "space": "O(d)"
+    },
+    "optimal": {
+      "idea": "Count into a hash map, then keep a min-heap of size k ordered so that the 'worst' element by the final ranking rule sits on top. Each of the d distinct entries costs O(log k) to push/pop, so selection is O(d log k) instead of O(d log d).",
+      "time": "O(n + d log k)",
+      "space": "O(d)"
+    },
+    "walkthrough": "Take `sources = [\"a.com\",\"b.com\",\"a.com\",\"c.com\",\"b.com\",\"a.com\"]`, `k = 2`.\n\n**Step 1 — count.** One pass builds the map:\n\n| domain | count |\n|---|---|\n| a.com | 3 |\n| b.com | 2 |\n| c.com | 1 |\n\n**Step 2 — size-2 min-heap.** The heap is ordered by the *inverse* of the final ranking, so the element most likely to be evicted is on top.\n\n| push | heap contents (top first) | action |\n|---|---|---|\n| (a.com, 3) | [(a.com,3)] | size 1 ≤ k |\n| (b.com, 2) | [(b.com,2), (a.com,3)] | size 2 ≤ k |\n| (c.com, 1) | [(c.com,1), (b.com,2), (a.com,3)] | size 3 > k → pop top |\n| — | [(b.com,2), (a.com,3)] | c.com evicted |\n\n**Step 3 — order the survivors.** Sort by count descending, then domain ascending → `[\"a.com\", \"b.com\"]`.\n\nThe heap never holds more than k+1 elements, which is the whole point: with d = 10⁵ distinct domains and k = 10, you do 10⁵ operations of cost log 10 instead of cost log 10⁵.",
+    "solutions": {
+      "python": "import heapq\nfrom collections import Counter\nfrom typing import List\n\ndef top_k_sources(sources: List[str], k: int) -> List[str]:\n    counts = Counter(sources)\n\n    # Min-heap of size k. Key is (count, reversed-name) so that the element\n    # that should lose the tie-break sits on top and gets evicted first.\n    # Python has no 'reverse string' ordering, so we negate the comparison by\n    # storing the name and handling ties explicitly at the end instead.\n    heap = []  # entries are (count, name)\n    for name, c in counts.items():\n        heapq.heappush(heap, (c, _InvName(name)))\n        if len(heap) > k:\n            heapq.heappop(heap)\n\n    result = [(c, inv.name) for c, inv in heap]\n    # Final ordering: count descending, then name ascending.\n    result.sort(key=lambda p: (-p[0], p[1]))\n    return [name for _, name in result]\n\n\nclass _InvName:\n    \"\"\"Wrapper that reverses string ordering, so the lexicographically LARGEST\n    name compares as smallest and is evicted first on a count tie.\"\"\"\n    __slots__ = ('name',)\n\n    def __init__(self, name: str):\n        self.name = name\n\n    def __lt__(self, other: '_InvName') -> bool:\n        return self.name > other.name",
+      "java": "import java.util.*;\n\nclass Solution {\n    public List<String> topKSources(String[] sources, int k) {\n        Map<String, Integer> counts = new HashMap<>();\n        for (String s : sources) {\n            counts.put(s, counts.getOrDefault(s, 0) + 1);\n        }\n\n        // Min-heap of size k: the entry that would lose the final ranking\n        // sits on top, so it is the one evicted when we overflow.\n        PriorityQueue<Map.Entry<String, Integer>> heap = new PriorityQueue<>(\n            (a, b) -> {\n                if (!a.getValue().equals(b.getValue())) {\n                    return a.getValue() - b.getValue();      // smaller count first\n                }\n                return b.getKey().compareTo(a.getKey());     // larger name first\n            }\n        );\n\n        for (Map.Entry<String, Integer> e : counts.entrySet()) {\n            heap.offer(e);\n            if (heap.size() > k) heap.poll();\n        }\n\n        List<Map.Entry<String, Integer>> survivors = new ArrayList<>(heap);\n        survivors.sort((a, b) -> {\n            if (!a.getValue().equals(b.getValue())) {\n                return b.getValue() - a.getValue();          // count descending\n            }\n            return a.getKey().compareTo(b.getKey());          // name ascending\n        });\n\n        List<String> out = new ArrayList<>();\n        for (Map.Entry<String, Integer> e : survivors) out.add(e.getKey());\n        return out;\n    }\n}",
+      "cpp": "#include <string>\n#include <vector>\n#include <unordered_map>\n#include <queue>\n#include <algorithm>\n\nclass Solution {\npublic:\n    std::vector<std::string> topKSources(const std::vector<std::string>& sources, int k) {\n        std::unordered_map<std::string, int> counts;\n        for (const auto& s : sources) ++counts[s];\n\n        using Entry = std::pair<int, std::string>;   // (count, name)\n\n        // Comparator returns true when a should sit BELOW b in the heap.\n        // We want the losing entry on top: smallest count, then largest name.\n        auto worseOnTop = [](const Entry& a, const Entry& b) {\n            if (a.first != b.first) return a.first > b.first;   // smaller count on top\n            return a.second < b.second;                          // larger name on top\n        };\n\n        std::priority_queue<Entry, std::vector<Entry>, decltype(worseOnTop)> heap(worseOnTop);\n        for (const auto& kv : counts) {\n            heap.push({kv.second, kv.first});\n            if (static_cast<int>(heap.size()) > k) heap.pop();\n        }\n\n        std::vector<Entry> survivors;\n        while (!heap.empty()) { survivors.push_back(heap.top()); heap.pop(); }\n\n        std::sort(survivors.begin(), survivors.end(), [](const Entry& a, const Entry& b) {\n            if (a.first != b.first) return a.first > b.first;   // count descending\n            return a.second < b.second;                          // name ascending\n        });\n\n        std::vector<std::string> out;\n        out.reserve(survivors.size());\n        for (const auto& e : survivors) out.push_back(e.second);\n        return out;\n    }\n};"
+    },
+    "edgeCases": [
+      "k equals the number of distinct domains → returns everything, still ordered",
+      "All domains identical → single element repeated n times, k must be 1",
+      "Every domain distinct → tie-break rule decides the entire answer",
+      "Ties that straddle the k boundary — this is where a sloppy comparator produces a wrong but plausible-looking answer"
+    ],
+    "followUps": [
+      "The log is a stream too large to fit in memory — how would you get an approximate top-k? (Count-Min Sketch, or the Misra-Gries / Space-Saving algorithm.)",
+      "Counts are all small integers bounded by n — can you get O(n) with bucket sort instead of a heap?",
+      "How would you keep the top-k updated live as new citations stream in?"
+    ],
+    "patternTakeaway": "For top-k out of d items, a size-k heap turns O(d log d) into O(d log k) — and the tie-break rule must be encoded identically in the heap comparator and the final sort."
+  },
+  {
+    "id": "cb-03",
+    "title": "Merge Overlapping Campaign Windows",
+    "difficulty": "medium",
+    "topics": ["Intervals", "Sorting", "Greedy"],
+    "statement": "You are given an array `intervals` where `intervals[i] = [start_i, end_i]` represents a campaign that runs from `start_i` to `end_i` inclusive.\n\nMerge all overlapping or touching intervals and return the resulting non-overlapping intervals, sorted by start time. Two intervals touch when one ends exactly where the next begins (`[1,3]` and `[3,5]` merge into `[1,5]`).\n\n**Input:** array of integer pairs `intervals`.\n**Output:** array of merged integer pairs.",
+    "examples": [
+      { "input": "intervals = [[1,3],[2,6],[8,10],[15,18]]", "output": "[[1,6],[8,10],[15,18]]", "explanation": "[1,3] and [2,6] overlap (2 <= 3), so they merge into [1,6]. The others are disjoint." },
+      { "input": "intervals = [[1,4],[4,5]]", "output": "[[1,5]]", "explanation": "They touch at 4, which counts as overlapping here." }
+    ],
+    "constraints": ["1 <= intervals.length <= 10^4", "intervals[i].length == 2", "0 <= start_i <= end_i <= 10^9"],
+    "hints": [
+      "The input is unsorted, and that is the only thing making this hard. What becomes true once the intervals are sorted by start time?",
+      "After sorting by start, any interval can only overlap with the block you are *currently* building — never with one you already closed off. That reduces the whole problem to a single left-to-right sweep.",
+      "Hold one 'current' interval. For each next interval: if `next.start <= current.end`, extend `current.end = max(current.end, next.end)`; otherwise push `current` to the output and make `next` the new current. Do not forget to push the final current at the end."
+    ],
+    "bruteForce": {
+      "idea": "Repeatedly scan all pairs looking for any two that overlap, merge them, and start over. Terminates when a full pass finds nothing to merge.",
+      "time": "O(n^3) worst case",
+      "space": "O(n)"
+    },
+    "optimal": {
+      "idea": "Sort by start time, then sweep once holding a single open interval. Sorting dominates the cost; the sweep itself is linear.",
+      "time": "O(n log n)",
+      "space": "O(n) for the output, O(1) auxiliary beyond the sort"
+    },
+    "walkthrough": "Take `[[1,3],[2,6],[8,10],[15,18]]`. It is already sorted by start.\n\n| next interval | current before | test | current after | output |\n|---|---|---|---|---|\n| [1,3] | — | first one | [1,3] | [] |\n| [2,6] | [1,3] | 2 <= 3 → overlap | [1, max(3,6)] = [1,6] | [] |\n| [8,10] | [1,6] | 8 > 6 → disjoint | [8,10] | [[1,6]] |\n| [15,18] | [8,10] | 15 > 10 → disjoint | [15,18] | [[1,6],[8,10]] |\n\nAfter the loop, push the still-open `[15,18]` → `[[1,6],[8,10],[15,18]]`.\n\nThe `max(current.end, next.end)` is the line people get wrong. Consider `[[1,10],[2,3]]`: `next.end = 3` is *smaller* than `current.end = 10`. Blindly assigning `current.end = next.end` would shrink the interval to `[1,3]` and silently lose coverage.",
+    "solutions": {
+      "python": "from typing import List\n\ndef merge_intervals(intervals: List[List[int]]) -> List[List[int]]:\n    if not intervals:\n        return []\n\n    intervals.sort(key=lambda iv: iv[0])   # sort by start time\n\n    merged = [list(intervals[0])]\n    for start, end in intervals[1:]:\n        last = merged[-1]\n        if start <= last[1]:\n            # overlaps or touches the open interval - extend it.\n            # max() matters: the new interval may be fully contained.\n            last[1] = max(last[1], end)\n        else:\n            merged.append([start, end])\n    return merged",
+      "java": "import java.util.*;\n\nclass Solution {\n    public int[][] merge(int[][] intervals) {\n        if (intervals.length == 0) return new int[0][];\n\n        // Comparator.comparingInt avoids the a[0] - b[0] overflow trap\n        // when start values can be near Integer.MAX_VALUE.\n        Arrays.sort(intervals, Comparator.comparingInt(a -> a[0]));\n\n        List<int[]> merged = new ArrayList<>();\n        int[] current = new int[]{intervals[0][0], intervals[0][1]};\n\n        for (int i = 1; i < intervals.length; i++) {\n            int start = intervals[i][0], end = intervals[i][1];\n            if (start <= current[1]) {\n                current[1] = Math.max(current[1], end);   // extend, never shrink\n            } else {\n                merged.add(current);\n                current = new int[]{start, end};\n            }\n        }\n        merged.add(current);   // the final open interval\n\n        return merged.toArray(new int[merged.size()][]);\n    }\n}",
+      "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    std::vector<std::vector<int>> merge(std::vector<std::vector<int>>& intervals) {\n        if (intervals.empty()) return {};\n\n        std::sort(intervals.begin(), intervals.end(),\n                  [](const std::vector<int>& a, const std::vector<int>& b) {\n                      return a[0] < b[0];   // sort by start time\n                  });\n\n        std::vector<std::vector<int>> merged;\n        std::vector<int> current = intervals[0];\n\n        for (size_t i = 1; i < intervals.size(); ++i) {\n            int start = intervals[i][0], end = intervals[i][1];\n            if (start <= current[1]) {\n                current[1] = std::max(current[1], end);   // extend, never shrink\n            } else {\n                merged.push_back(current);\n                current = intervals[i];\n            }\n        }\n        merged.push_back(current);   // the final open interval\n\n        return merged;\n    }\n};"
+    },
+    "edgeCases": [
+      "Single interval → returned unchanged",
+      "One interval fully inside another, [[1,10],[2,3]] → [[1,10]], the max() case",
+      "Touching endpoints [[1,4],[4,5]] → [[1,5]] under this problem's rule; if the problem said 'strictly overlapping' the test would be < not <=",
+      "All identical intervals → collapse to one",
+      "Unsorted input, which is the default — forgetting the sort passes the sample and fails the suite"
+    ],
+    "followUps": [
+      "Insert a single new interval into an already-merged list in O(n) without re-sorting.",
+      "Return the total covered length rather than the intervals themselves.",
+      "Find the maximum number of campaigns running simultaneously (sweep-line with +1/-1 events)."
+    ],
+    "patternTakeaway": "Almost every interval problem starts with 'sort by start time'; after that a single sweep holding one open interval solves it, and the merge step is always max(), never assignment."
+  },
+  {
+    "id": "cb-04",
+    "title": "Days Until a Better Ranking",
+    "difficulty": "medium",
+    "topics": ["Monotonic Stack", "Arrays"],
+    "statement": "You track your brand's visibility score once per day in an array `scores`.\n\nFor each day `i`, find how many days you must wait until a day with a **strictly higher** score. If no such future day exists, the answer for that day is `0`.\n\n**Input:** integer array `scores`.\n**Output:** integer array `answer` of the same length, where `answer[i]` is the waiting time in days.",
+    "examples": [
+      { "input": "scores = [73,74,75,71,69,72,76,73]", "output": "[1,1,4,2,1,1,0,0]", "explanation": "Day 0 (73) is beaten the very next day by 74 → wait 1. Day 2 (75) is not beaten until day 6 (76) → wait 4. Days 6 and 7 are never beaten → 0." },
+      { "input": "scores = [30,40,50,60]", "output": "[1,1,1,0]", "explanation": "Strictly increasing, so every day is beaten by the next one." }
+    ],
+    "constraints": ["1 <= scores.length <= 10^5", "30 <= scores[i] <= 100"],
+    "hints": [
+      "The naive answer scans forward from every index. Notice how much of that scanning is repeated work — if day 3 is not beaten by day 4, then anything that fails to beat day 3 also fails to beat day 4 when day 4 is larger.",
+      "Keep a stack of indices whose answer you have not yet resolved. The scores at those indices are, by construction, in decreasing order.",
+      "When you read a new score, it resolves every pending index on the stack whose score is strictly less than it. Pop them one at a time, and the answer for each popped index is `currentIndex - poppedIndex`. Then push the current index."
+    ],
+    "bruteForce": {
+      "idea": "For each index i, scan j from i+1 forward until scores[j] > scores[i]. Simple and obviously correct, but degenerates on a decreasing array where every scan runs to the end.",
+      "time": "O(n^2)",
+      "space": "O(1)"
+    },
+    "optimal": {
+      "idea": "One pass with a monotonic decreasing stack of unresolved indices. Each index is pushed exactly once and popped at most once, so the total work is linear despite the inner while loop.",
+      "time": "O(n)",
+      "space": "O(n)"
+    },
+    "walkthrough": "Trace `[73, 74, 75, 71, 69, 72, 76, 73]`. Stack holds indices; the scores at those indices stay in decreasing order.\n\n| i | score | pops (resolved) | stack after | answer set |\n|---|---|---|---|---|\n| 0 | 73 | — | [0] | — |\n| 1 | 74 | pop 0 (73 < 74) | [1] | ans[0] = 1-0 = 1 |\n| 2 | 75 | pop 1 (74 < 75) | [2] | ans[1] = 2-1 = 1 |\n| 3 | 71 | none (71 < 75) | [2,3] | — |\n| 4 | 69 | none (69 < 71) | [2,3,4] | — |\n| 5 | 72 | pop 4 (69<72), pop 3 (71<72) | [2,5] | ans[4] = 1, ans[3] = 2 |\n| 6 | 76 | pop 5 (72<76), pop 2 (75<76) | [6] | ans[5] = 1, ans[2] = 4 |\n| 7 | 73 | none (73 < 76) | [6,7] | — |\n\nIndices 6 and 7 are still on the stack when the loop ends — they were never beaten, so their answers stay at the initialised `0`.\n\n**Why this is O(n) and not O(n²):** the inner `while` can pop many elements in one iteration, but every index enters the stack once and leaves once. Total pops across the whole run is at most n. Amortised, each index costs O(1).",
+    "solutions": {
+      "python": "from typing import List\n\ndef days_until_better(scores: List[int]) -> List[int]:\n    n = len(scores)\n    answer = [0] * n      # default 0 means 'never beaten'\n    stack = []            # indices of days still waiting for a better score\n\n    for i, score in enumerate(scores):\n        # every pending day with a strictly smaller score is resolved by today\n        while stack and scores[stack[-1]] < score:\n            j = stack.pop()\n            answer[j] = i - j\n        stack.append(i)\n\n    return answer",
+      "java": "import java.util.*;\n\nclass Solution {\n    public int[] daysUntilBetter(int[] scores) {\n        int n = scores.length;\n        int[] answer = new int[n];        // defaults to 0 = 'never beaten'\n        Deque<Integer> stack = new ArrayDeque<>();   // indices still waiting\n\n        for (int i = 0; i < n; i++) {\n            // every pending day with a strictly smaller score is resolved by today\n            while (!stack.isEmpty() && scores[stack.peek()] < scores[i]) {\n                int j = stack.pop();\n                answer[j] = i - j;\n            }\n            stack.push(i);\n        }\n\n        return answer;\n    }\n}",
+      "cpp": "#include <vector>\n#include <stack>\n\nclass Solution {\npublic:\n    std::vector<int> daysUntilBetter(const std::vector<int>& scores) {\n        int n = static_cast<int>(scores.size());\n        std::vector<int> answer(n, 0);   // 0 = 'never beaten'\n        std::stack<int> st;              // indices still waiting\n\n        for (int i = 0; i < n; ++i) {\n            // every pending day with a strictly smaller score is resolved by today\n            while (!st.empty() && scores[st.top()] < scores[i]) {\n                int j = st.top();\n                st.pop();\n                answer[j] = i - j;\n            }\n            st.push(i);\n        }\n\n        return answer;\n    }\n};"
+    },
+    "edgeCases": [
+      "Strictly decreasing input → all zeros, and the stack grows to length n",
+      "All equal values → all zeros, because the comparison is strict (< not <=)",
+      "Single element → [0]",
+      "Using <= instead of < silently changes the semantics from 'strictly higher' to 'at least as high'"
+    ],
+    "followUps": [
+      "Return the previous greater element instead of the next — iterate right to left with the same stack.",
+      "Find the largest rectangle in a histogram, which is the same stack with an extra width calculation.",
+      "Make it work on a circular array where day n-1 wraps to day 0."
+    ],
+    "patternTakeaway": "'Next greater / next smaller element' is always a monotonic stack of unresolved indices — each index pushed once and popped once, so the nested while loop is still O(n) overall."
+  },
+  {
+    "id": "cc-01",
+    "title": "Count Connected Regions in a Grid",
+    "difficulty": "medium",
+    "topics": ["Graphs", "BFS", "DFS", "Grid"],
+    "statement": "You are given an `m x n` grid of characters where `'1'` marks an occupied cell and `'0'` marks an empty cell.\n\nA **region** is a maximal group of `'1'` cells connected horizontally or vertically (not diagonally). Return the number of distinct regions.\n\n**Input:** 2-D character array `grid`.\n**Output:** a single integer.",
+    "examples": [
+      { "input": "grid = [[\"1\",\"1\",\"0\"],[\"1\",\"0\",\"0\"],[\"0\",\"0\",\"1\"]]", "output": "2", "explanation": "The three connected '1's in the top-left form one region; the lone '1' at (2,2) forms another. Diagonal adjacency does not connect them." },
+      { "input": "grid = [[\"0\",\"0\"],[\"0\",\"0\"]]", "output": "0", "explanation": "No occupied cells at all." }
+    ],
+    "constraints": ["1 <= m, n <= 300", "grid[i][j] is '0' or '1'"],
+    "hints": [
+      "This is a graph problem wearing a grid costume. Each '1' cell is a vertex; edges join orthogonally adjacent '1' cells. What standard quantity are you being asked for?",
+      "Counting connected components: scan every cell, and whenever you meet an unvisited '1', increment the counter and then flood-fill everything reachable from it so it is never counted again.",
+      "The flood fill can be DFS or BFS. Sinking visited cells by overwriting them with '0' avoids a separate visited array — just be sure you are allowed to mutate the input, otherwise keep a boolean grid."
+    ],
+    "bruteForce": {
+      "idea": "There is no meaningfully worse approach that is still correct — a union-find over all cells is the main alternative at O(m·n·α(m·n)), which is essentially the same cost with more code.",
+      "time": "O(m * n * a(m * n)) with union-find",
+      "space": "O(m * n)"
+    },
+    "optimal": {
+      "idea": "Linear scan plus flood fill. Every cell is visited a constant number of times: once by the outer scan, and at most once by a flood fill.",
+      "time": "O(m * n)",
+      "space": "O(min(m, n)) for a BFS queue, or O(m * n) worst case for a DFS recursion stack"
+    },
+    "walkthrough": "Take the 3x3 grid:\n\n```\n1 1 0\n1 0 0\n0 0 1\n```\n\nThe outer scan visits cells in row-major order.\n\n| cell | value | action |\n|---|---|---|\n| (0,0) | '1' | unvisited → **count = 1**, start BFS |\n| — | — | BFS from (0,0) reaches (0,1) and (1,0); both sunk to '0'. (1,1) is '0', so the region stops. |\n| (0,1) | now '0' | skip — already sunk |\n| (0,2) | '0' | skip |\n| (1,0) | now '0' | skip |\n| (1,1),(1,2) | '0' | skip |\n| (2,0),(2,1) | '0' | skip |\n| (2,2) | '1' | unvisited → **count = 2**, BFS finds no neighbours |\n\nFinal count: **2**.\n\n**Why BFS over DFS here:** with m = n = 300, a grid that is entirely '1's gives a single region of 90,000 cells. Recursive DFS would nest 90,000 frames deep and blow the stack in Java and C++, and hit Python's default recursion limit of 1000 almost immediately. The iterative BFS below has no such problem — this is a real, common failure on this exact problem.",
+    "solutions": {
+      "python": "from collections import deque\nfrom typing import List\n\ndef count_regions(grid: List[List[str]]) -> int:\n    if not grid or not grid[0]:\n        return 0\n\n    rows, cols = len(grid), len(grid[0])\n    count = 0\n    DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] != '1':\n                continue\n\n            count += 1\n            # Iterative BFS, not recursion: a 300x300 grid of all '1's is a\n            # single 90,000-cell region and would overflow the call stack.\n            queue = deque([(r, c)])\n            grid[r][c] = '0'          # sink on enqueue, never on dequeue\n\n            while queue:\n                cr, cc = queue.popleft()\n                for dr, dc in DIRECTIONS:\n                    nr, nc = cr + dr, cc + dc\n                    if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == '1':\n                        grid[nr][nc] = '0'\n                        queue.append((nr, nc))\n\n    return count",
+      "java": "import java.util.*;\n\nclass Solution {\n    public int countRegions(char[][] grid) {\n        if (grid == null || grid.length == 0 || grid[0].length == 0) return 0;\n\n        int rows = grid.length, cols = grid[0].length;\n        int count = 0;\n        int[][] directions = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};\n\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                if (grid[r][c] != '1') continue;\n\n                count++;\n                // Iterative BFS - recursion would overflow on a large solid region.\n                Deque<int[]> queue = new ArrayDeque<>();\n                queue.offer(new int[]{r, c});\n                grid[r][c] = '0';        // sink on enqueue, never on dequeue\n\n                while (!queue.isEmpty()) {\n                    int[] cell = queue.poll();\n                    for (int[] d : directions) {\n                        int nr = cell[0] + d[0], nc = cell[1] + d[1];\n                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == '1') {\n                            grid[nr][nc] = '0';\n                            queue.offer(new int[]{nr, nc});\n                        }\n                    }\n                }\n            }\n        }\n\n        return count;\n    }\n}",
+      "cpp": "#include <vector>\n#include <queue>\n#include <utility>\n\nclass Solution {\npublic:\n    int countRegions(std::vector<std::vector<char>>& grid) {\n        if (grid.empty() || grid[0].empty()) return 0;\n\n        int rows = static_cast<int>(grid.size());\n        int cols = static_cast<int>(grid[0].size());\n        int count = 0;\n        const int dr[4] = {1, -1, 0, 0};\n        const int dc[4] = {0, 0, 1, -1};\n\n        for (int r = 0; r < rows; ++r) {\n            for (int c = 0; c < cols; ++c) {\n                if (grid[r][c] != '1') continue;\n\n                ++count;\n                // Iterative BFS - recursion would overflow on a large solid region.\n                std::queue<std::pair<int,int>> q;\n                q.push({r, c});\n                grid[r][c] = '0';        // sink on enqueue, never on dequeue\n\n                while (!q.empty()) {\n                    auto [cr, cc] = q.front();\n                    q.pop();\n                    for (int k = 0; k < 4; ++k) {\n                        int nr = cr + dr[k], nc = cc + dc[k];\n                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == '1') {\n                            grid[nr][nc] = '0';\n                            q.push({nr, nc});\n                        }\n                    }\n                }\n            }\n        }\n\n        return count;\n    }\n};"
+    },
+    "edgeCases": [
+      "Grid of all '1's → exactly 1 region, and the case that breaks recursive DFS",
+      "Grid of all '0's → 0",
+      "Single row or single column",
+      "Diagonally touching cells must NOT merge — a common wrong answer adds 8 directions",
+      "Sinking on dequeue instead of on enqueue lets the same cell enter the queue several times and degrades to O((mn)^2) memory pressure"
+    ],
+    "followUps": [
+      "Return the size of the largest region instead of the count.",
+      "The grid is too large for memory and arrives row by row — how would you count regions in a streaming fashion? (Union-find over two rows at a time.)",
+      "Allow diagonal connectivity — what exactly changes?"
+    ],
+    "patternTakeaway": "Count connected components = scan for an unvisited seed, increment, flood-fill; use iterative BFS on grids because a solid region can be as deep as the whole grid."
+  },
+  {
+    "id": "cc-02",
+    "title": "Feature Rollout Order",
+    "difficulty": "medium",
+    "topics": ["Graphs", "Topological Sort", "BFS"],
+    "statement": "Your team has `n` features labelled `0` to `n-1`. Some features depend on others: `dependencies[i] = [a, b]` means feature `b` must ship before feature `a`.\n\nReturn any valid order in which all `n` features can ship. If no such order exists — because the dependencies contain a cycle — return an empty array.\n\n**Input:** integer `n`, array of integer pairs `dependencies`.\n**Output:** an array of `n` integers, or an empty array.",
+    "examples": [
+      { "input": "n = 4, dependencies = [[1,0],[2,0],[3,1],[3,2]]", "output": "[0,1,2,3]", "explanation": "Feature 0 has no dependencies so it ships first. 1 and 2 both need 0. 3 needs both 1 and 2. [0,2,1,3] is equally valid." },
+      { "input": "n = 2, dependencies = [[1,0],[0,1]]", "output": "[]", "explanation": "0 must precede 1 and 1 must precede 0 — a cycle, so no order exists." }
+    ],
+    "constraints": ["1 <= n <= 2000", "0 <= dependencies.length <= 5000", "all pairs are distinct"],
+    "hints": [
+      "Model it as a directed graph. The pair [a, b] means 'b before a', so the edge points from b to a. Getting this direction backwards is the single most common mistake on this problem.",
+      "A feature can ship the moment every feature it depends on has already shipped. Track, for each feature, how many unshipped dependencies it still has — its in-degree.",
+      "Start a queue with every feature of in-degree 0. Pop one, append it to the order, and decrement the in-degree of everything that depended on it; anything that hits 0 joins the queue. If the final order has fewer than n entries, the leftovers are in a cycle."
+    ],
+    "bruteForce": {
+      "idea": "Repeatedly scan all n features for one whose dependencies are all satisfied, emit it, mark it done, and rescan from scratch. Correct, but each of the n emissions costs a full O(n + E) scan.",
+      "time": "O(n * (n + E))",
+      "space": "O(n + E)"
+    },
+    "optimal": {
+      "idea": "Kahn's algorithm. Build the adjacency list and in-degree array in one pass over the edges, then process the zero-in-degree frontier with a queue. Cycle detection falls out for free: if fewer than n nodes were emitted, a cycle exists.",
+      "time": "O(n + E)",
+      "space": "O(n + E)"
+    },
+    "walkthrough": "Take `n = 4`, `dependencies = [[1,0],[2,0],[3,1],[3,2]]`.\n\n**Build the graph.** `[a,b]` means b → a.\n\n| edge | meaning | adjacency | in-degree effect |\n|---|---|---|---|\n| [1,0] | 0 → 1 | adj[0] += 1 | indeg[1] = 1 |\n| [2,0] | 0 → 2 | adj[0] += 2 | indeg[2] = 1 |\n| [3,1] | 1 → 3 | adj[1] += 3 | indeg[3] = 1 |\n| [3,2] | 2 → 3 | adj[2] += 3 | indeg[3] = 2 |\n\nFinal in-degrees: `[0, 1, 1, 2]`. Only node 0 starts at zero.\n\n**Process the queue.**\n\n| step | queue | pop | order so far | in-degrees after decrement |\n|---|---|---|---|---|\n| 1 | [0] | 0 | [0] | 1→0, 2→0, so both enqueue |\n| 2 | [1,2] | 1 | [0,1] | 3→1, not yet ready |\n| 3 | [2] | 2 | [0,1,2] | 3→0, enqueues |\n| 4 | [3] | 3 | [0,1,2,3] | — |\n\nOrder length is 4 = n, so the order is valid: `[0,1,2,3]`.\n\n**How the cycle case fails.** For `n = 2`, `[[1,0],[0,1]]`, in-degrees are `[1,1]` — nothing ever enters the queue, the loop never runs, and the order stays empty with length 0 < 2. Return `[]`.",
+    "solutions": {
+      "python": "from collections import deque\nfrom typing import List\n\ndef rollout_order(n: int, dependencies: List[List[int]]) -> List[int]:\n    adjacency = [[] for _ in range(n)]\n    in_degree = [0] * n\n\n    # dependencies[i] = [a, b] means 'b must ship before a', so the edge is b -> a\n    for a, b in dependencies:\n        adjacency[b].append(a)\n        in_degree[a] += 1\n\n    # everything with no unmet dependency can ship immediately\n    queue = deque(i for i in range(n) if in_degree[i] == 0)\n    order = []\n\n    while queue:\n        node = queue.popleft()\n        order.append(node)\n        for nxt in adjacency[node]:\n            in_degree[nxt] -= 1\n            if in_degree[nxt] == 0:\n                queue.append(nxt)\n\n    # fewer than n emitted means the remainder sit in a cycle\n    return order if len(order) == n else []",
+      "java": "import java.util.*;\n\nclass Solution {\n    public int[] rolloutOrder(int n, int[][] dependencies) {\n        List<List<Integer>> adjacency = new ArrayList<>();\n        for (int i = 0; i < n; i++) adjacency.add(new ArrayList<>());\n        int[] inDegree = new int[n];\n\n        // [a, b] means 'b must ship before a', so the edge is b -> a\n        for (int[] dep : dependencies) {\n            int a = dep[0], b = dep[1];\n            adjacency.get(b).add(a);\n            inDegree[a]++;\n        }\n\n        Deque<Integer> queue = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            if (inDegree[i] == 0) queue.offer(i);\n        }\n\n        int[] order = new int[n];\n        int emitted = 0;\n\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            order[emitted++] = node;\n            for (int next : adjacency.get(node)) {\n                if (--inDegree[next] == 0) queue.offer(next);\n            }\n        }\n\n        // fewer than n emitted means the remainder sit in a cycle\n        return emitted == n ? order : new int[0];\n    }\n}",
+      "cpp": "#include <vector>\n#include <queue>\n\nclass Solution {\npublic:\n    std::vector<int> rolloutOrder(int n, const std::vector<std::vector<int>>& dependencies) {\n        std::vector<std::vector<int>> adjacency(n);\n        std::vector<int> inDegree(n, 0);\n\n        // [a, b] means 'b must ship before a', so the edge is b -> a\n        for (const auto& dep : dependencies) {\n            int a = dep[0], b = dep[1];\n            adjacency[b].push_back(a);\n            ++inDegree[a];\n        }\n\n        std::queue<int> q;\n        for (int i = 0; i < n; ++i) {\n            if (inDegree[i] == 0) q.push(i);\n        }\n\n        std::vector<int> order;\n        order.reserve(n);\n\n        while (!q.empty()) {\n            int node = q.front();\n            q.pop();\n            order.push_back(node);\n            for (int next : adjacency[node]) {\n                if (--inDegree[next] == 0) q.push(next);\n            }\n        }\n\n        // fewer than n emitted means the remainder sit in a cycle\n        if (static_cast<int>(order.size()) != n) return {};\n        return order;\n    }\n};"
+    },
+    "edgeCases": [
+      "No dependencies at all → any permutation is valid; this implementation returns [0,1,...,n-1]",
+      "A self-dependency [a, a] → in-degree never reaches 0, correctly reported as a cycle",
+      "Disconnected components → handled naturally, since every zero-in-degree node seeds the queue",
+      "Reversing the edge direction produces a plausible-looking order that is exactly backwards — check against the sample",
+      "n = 1 with no edges → [0]"
+    ],
+    "followUps": [
+      "Detect and return the actual cycle rather than just reporting failure (DFS with a recursion-stack colour marking).",
+      "Return the lexicographically smallest valid order — swap the queue for a min-heap.",
+      "Compute the minimum number of parallel rollout waves, which is the longest path in the DAG."
+    ],
+    "patternTakeaway": "Ordering under 'X before Y' constraints is a topological sort; Kahn's in-degree queue gives you both the order and cycle detection, and the emitted-count check is the cycle test."
+  },
+  {
+    "id": "cc-03",
+    "title": "Rightmost Node of Each Level",
+    "difficulty": "medium",
+    "topics": ["Trees", "BFS", "Level Order"],
+    "statement": "Given the root of a binary tree, imagine standing to the right of it. Return the values of the nodes you can see, ordered from top to bottom — that is, the **last node at each depth**.\n\n**Input:** the root of a binary tree (`null` for an empty tree).\n**Output:** an array of integers, one per level.",
+    "examples": [
+      { "input": "root = [1,2,3,null,5,null,4]", "output": "[1,3,4]", "explanation": "Level 0 has only 1. Level 1 has [2,3] so you see 3. Level 2 has [5,4] so you see 4." },
+      { "input": "root = [1,2,null,3]", "output": "[1,2,3]", "explanation": "A left-leaning chain — with nothing to their right, every node is visible." }
+    ],
+    "constraints": ["0 <= number of nodes <= 100", "-100 <= Node.val <= 100"],
+    "hints": [
+      "The naive idea 'always go right' fails on the second example, where the visible nodes are all left children. Visibility is about depth, not about direction.",
+      "If you process the tree level by level, the answer for each level is simply the last node in that level.",
+      "Standard level-order BFS: before draining the queue, record its current size — that is exactly the number of nodes at this depth. Loop that many times, and the node at the final iteration is the one you can see."
+    ],
+    "bruteForce": {
+      "idea": "DFS the whole tree recording (depth, value) for every node, then group by depth and take the last-visited entry at each depth. Same asymptotic cost, but needs a second pass and careful ordering.",
+      "time": "O(n)",
+      "space": "O(n)"
+    },
+    "optimal": {
+      "idea": "Level-order BFS with an explicit level-size snapshot. One pass, and the answer is written as you go. Alternatively a root-right-left DFS that records the first node seen at each new depth.",
+      "time": "O(n)",
+      "space": "O(w) where w is the maximum width of the tree"
+    },
+    "walkthrough": "Take the tree `[1,2,3,null,5,null,4]`:\n\n```\n      1\n     / \\\n    2   3\n     \\    \\\n      5    4\n```\n\nBFS with a level-size snapshot each round:\n\n| round | queue at start | levelSize | nodes processed | last one → recorded | children enqueued |\n|---|---|---|---|---|---|\n| 1 | [1] | 1 | 1 | **1** | 2, 3 |\n| 2 | [2, 3] | 2 | 2, then 3 | **3** | 5 (from 2), 4 (from 3) |\n| 3 | [5, 4] | 2 | 5, then 4 | **4** | none |\n\nResult: `[1, 3, 4]`.\n\nThe crucial line is capturing `levelSize = queue.size()` **before** the inner loop starts. Inside the loop you are enqueuing children, so the queue grows — reading `.size()` inside the condition would make the loop consume the next level too and collapse the whole traversal into one round.\n\nCheck it against example 2, the left-leaning chain: each level contains exactly one node, so the 'last node at this level' is that node, and every node is visible. A naive always-go-right walk would have returned just `[1]`.",
+    "solutions": {
+      "python": "from collections import deque\nfrom typing import List, Optional\n\nclass TreeNode:\n    def __init__(self, val: int = 0, left: 'Optional[TreeNode]' = None, right: 'Optional[TreeNode]' = None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef right_side_view(root: Optional[TreeNode]) -> List[int]:\n    if root is None:\n        return []\n\n    view = []\n    queue = deque([root])\n\n    while queue:\n        level_size = len(queue)      # snapshot BEFORE enqueuing children\n        for i in range(level_size):\n            node = queue.popleft()\n            if i == level_size - 1:  # last node at this depth is the visible one\n                view.append(node.val)\n            if node.left:\n                queue.append(node.left)\n            if node.right:\n                queue.append(node.right)\n\n    return view",
+      "java": "import java.util.*;\n\nclass TreeNode {\n    int val;\n    TreeNode left;\n    TreeNode right;\n    TreeNode() {}\n    TreeNode(int val) { this.val = val; }\n    TreeNode(int val, TreeNode left, TreeNode right) {\n        this.val = val; this.left = left; this.right = right;\n    }\n}\n\nclass Solution {\n    public List<Integer> rightSideView(TreeNode root) {\n        List<Integer> view = new ArrayList<>();\n        if (root == null) return view;\n\n        Deque<TreeNode> queue = new ArrayDeque<>();\n        queue.offer(root);\n\n        while (!queue.isEmpty()) {\n            int levelSize = queue.size();    // snapshot BEFORE enqueuing children\n            for (int i = 0; i < levelSize; i++) {\n                TreeNode node = queue.poll();\n                if (i == levelSize - 1) {    // last node at this depth is visible\n                    view.add(node.val);\n                }\n                if (node.left != null) queue.offer(node.left);\n                if (node.right != null) queue.offer(node.right);\n            }\n        }\n\n        return view;\n    }\n}",
+      "cpp": "#include <vector>\n#include <queue>\n\nstruct TreeNode {\n    int val;\n    TreeNode* left;\n    TreeNode* right;\n    TreeNode() : val(0), left(nullptr), right(nullptr) {}\n    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}\n    TreeNode(int x, TreeNode* l, TreeNode* r) : val(x), left(l), right(r) {}\n};\n\nclass Solution {\npublic:\n    std::vector<int> rightSideView(TreeNode* root) {\n        std::vector<int> view;\n        if (root == nullptr) return view;\n\n        std::queue<TreeNode*> q;\n        q.push(root);\n\n        while (!q.empty()) {\n            int levelSize = static_cast<int>(q.size());   // snapshot BEFORE enqueuing\n            for (int i = 0; i < levelSize; ++i) {\n                TreeNode* node = q.front();\n                q.pop();\n                if (i == levelSize - 1) {                  // last node at this depth\n                    view.push_back(node->val);\n                }\n                if (node->left) q.push(node->left);\n                if (node->right) q.push(node->right);\n            }\n        }\n\n        return view;\n    }\n};"
+    },
+    "edgeCases": [
+      "Empty tree → []",
+      "Left-only chain → every node visible, the case that kills the 'always go right' shortcut",
+      "Single node → [root.val]",
+      "Reading queue.size() inside the loop condition instead of snapshotting it — collapses all levels into one"
+    ],
+    "followUps": [
+      "Return the left side view — same algorithm, take i == 0 instead.",
+      "Return the average value per level, or the maximum per level.",
+      "Do it with DFS in O(h) extra space by visiting root, right, then left, and recording the first node seen at each new depth."
+    ],
+    "patternTakeaway": "Anything phrased 'per level' of a tree is level-order BFS with the queue size snapshotted before the inner loop — that snapshot is what separates one level from the next."
+  }
+]
