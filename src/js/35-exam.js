@@ -27,6 +27,32 @@ let EX_TICK = null;
 
 function exStop() { if (EX_TICK) { clearInterval(EX_TICK); EX_TICK = null; } }
 
+/* In-app confirm. Native confirm()/alert() blur the window, which the proctor
+   listener then reports as a violation — the dialog would flag you for using
+   the dialog. This one never leaves the document. */
+function exConfirm(message, onYes) {
+  exSuppressProctor(1200);
+  const back = el('div', { class: 'modal-back' });
+  const close = function () { back.remove(); exSuppressProctor(600); };
+  const m = el('div', { class: 'modal' });
+  m.appendChild(el('h2', { text: 'Confirm' }));
+  m.appendChild(el('p', { text: message }));
+  const row = el('div', { style: 'display:flex;gap:9px;flex-wrap:wrap' });
+  const yes = el('button', { class: 'btn btn-primary', text: 'Yes, continue', onclick: function () { close(); onYes(); } });
+  row.appendChild(yes);
+  row.appendChild(el('button', { class: 'btn', text: 'Cancel', onclick: close }));
+  m.appendChild(row);
+  back.appendChild(m);
+  back.addEventListener('click', function (e) { if (e.target === back) close(); });
+  document.body.appendChild(back);
+  setTimeout(function () { yes.focus(); }, 20);
+}
+
+// Brief window in which focus changes are ours, not the candidate's.
+function exSuppressProctor(ms) {
+  if (EX) EX.suppressUntil = Date.now() + (ms || 800);
+}
+
 /* ---- Setup -------------------------------------------------------------- */
 
 function exNew() {
@@ -141,10 +167,11 @@ function exSwitchSection(to) {
   if (to === EX.section || exSectionDone(to)) return;
   // Switching mid-question forfeits the elapsed time on the current one, the
   // same way it would on the real platform. Warn, do not silently absorb it.
-  if (!confirm('Switch to Section ' + to + '? The time already spent on this question is not returned.')) return;
-  EX.section = to;
-  EX.qStartedAt = Date.now();
-  go('mock');
+  exConfirm('Switch to Section ' + to + '? The time already spent on this question is not returned.', function () {
+    EX.section = to;
+    EX.qStartedAt = Date.now();
+    go('mock');
+  });
 }
 
 function exFinish() {
@@ -192,6 +219,7 @@ function exExitFullscreen() {
 
 function exLogViolation(type) {
   if (!EX || EX.phase !== 'live') return;
+  if (EX.suppressUntil && Date.now() < EX.suppressUntil) return;   // our own dialog
   const last = EX.violations[EX.violations.length - 1];
   if (last && Date.now() - last.at < 1500) return;   // one act, one event
   EX.violations.push({ at: Date.now(), type: type });
@@ -238,17 +266,18 @@ function exShowViolation(type) {
 }
 
 function exOnVisibility() { if (document.hidden) exLogViolation('tab'); }
-function exOnBlur() { if (!document.hidden) exLogViolation('blur'); }
 function exOnFsChange() { if (!document.fullscreenElement) exLogViolation('fullscreen'); }
 
+// Deliberately NOT listening to window blur. Blur fires for in-page dialogs,
+// iframe focus changes and devtools, none of which are the candidate leaving
+// the test — in an embedded viewer it produced constant false violations.
+// visibilitychange is the reliable "you actually left" signal.
 function exAttachProctor() {
   document.addEventListener('visibilitychange', exOnVisibility);
-  window.addEventListener('blur', exOnBlur);
   document.addEventListener('fullscreenchange', exOnFsChange);
 }
 function exDetachProctor() {
   document.removeEventListener('visibilitychange', exOnVisibility);
-  window.removeEventListener('blur', exOnBlur);
   document.removeEventListener('fullscreenchange', exOnFsChange);
 }
 
@@ -349,6 +378,18 @@ function exLiveView() {
     text: fmtClock(exPerQMs() - (Date.now() - EX.qStartedAt)),
   }));
   bar.appendChild(qBox);
+
+  // Way out. The real platform has no exit, but this is practice — being
+  // trapped for 17 questions with no escape is a bug, not realism.
+  bar.appendChild(el('button', {
+    class: 'btn btn-sm btn-ghost', title: 'Abandon this attempt', text: 'Exit',
+    onclick: function () {
+      exConfirm('Abandon this attempt? Your answers so far are discarded and nothing is saved.', function () {
+        exStop(); exDetachProctor(); exExitFullscreen();
+        EX = null; go('dashboard');
+      });
+    },
+  }));
   shell.appendChild(bar);
 
   // --- section tabs (switchable, per the guidelines)
@@ -434,7 +475,9 @@ function exPaintMcq(main) {
   }));
   foot.appendChild(el('button', {
     class: 'btn', text: 'Skip',
-    onclick: function () { if (confirm('Skip this question? It is marked as attempted-and-skipped and cannot be returned to.')) exCommit(null, true); },
+    onclick: function () {
+      exConfirm('Skip this question? It is marked as attempted-and-skipped and cannot be returned to.', function () { exCommit(null, true); });
+    },
   }));
   const submitBtn = el('button', { class: 'btn btn-primary', text: 'Submit answer', disabled: true, onclick: function () { exCommit(chosen, false); } });
   foot.appendChild(submitBtn);
@@ -502,14 +545,18 @@ function exPaintCode(main) {
   foot.appendChild(el('span', { style: 'flex:1' }));
   foot.appendChild(el('button', {
     class: 'btn', text: 'Skip',
-    onclick: function () { if (confirm('Skip this problem? You cannot return to it.')) exCommit(null, true); },
+    onclick: function () {
+      exConfirm('Skip this problem? You cannot return to it.', function () { exCommit(null, true); });
+    },
   }));
   foot.appendChild(el('button', {
     class: 'btn btn-primary', text: 'Submit solution',
     onclick: function () {
-      if (!(EX._codeDraft[i] || '').trim() && !confirm('Submit an empty solution?')) return;
-      if (!confirm('Submit? You cannot return to this problem.')) return;
-      exCommit(EX._codeDraft[i] || '', false);
+      const empty = !(EX._codeDraft[i] || '').trim();
+      exConfirm(empty
+        ? 'Submit an empty solution? You cannot return to this problem.'
+        : 'Submit? You cannot return to this problem.',
+        function () { exCommit(EX._codeDraft[i] || '', false); });
     },
   }));
   right.appendChild(foot);
@@ -631,6 +678,9 @@ function exReport() {
     body.appendChild(el('div', { class: 'section-label', style: 'margin:16px 0 8px', text: 'Model solution' }));
     body.appendChild(codeBlock(p.solutions[EX.codeLang] || p.solutions.python, EX.codeLang));
     body.appendChild(mdBlock('**Optimal:** ' + p.optimal.idea + '\n\nTime ' + p.optimal.time + ', space ' + p.optimal.space));
+    if (p.practice && p.practice.links && p.practice.links.length) {
+      body.appendChild(practiceBox(p.practice));
+    }
     body.appendChild(el('button', {
       class: 'btn btn-sm', style: 'margin-top:12px', text: 'Open full problem with hints and dry run',
       onclick: function () { EX = null; go('coding', { id: p.id }); },

@@ -1,285 +1,434 @@
 [
-  {
-    "id": "cd-01",
-    "title": "Non-Adjacent Campaign Budget",
-    "difficulty": "medium",
-    "topics": ["Dynamic Programming", "1D DP"],
-    "statement": "You are given an integer array `value` where `value[i]` is the return from running a campaign in week `i`.\n\nYou cannot run campaigns in two consecutive weeks — the audience needs a gap. Return the **maximum total return** you can achieve.\n\n**Input:** integer array `value`.\n**Output:** a single integer.",
-    "examples": [
-      { "input": "value = [2,7,9,3,1]", "output": "12", "explanation": "Pick weeks 0, 2 and 4: 2 + 9 + 1 = 12. Picking 7 + 3 = 10 is worse, and 7 + 9 is illegal because those weeks are adjacent." },
-      { "input": "value = [5,1,1,5]", "output": "10", "explanation": "Weeks 0 and 3: 5 + 5 = 10. The greedy 'take the biggest first' happens to work here but fails on [2,7,9,3,1]." }
-    ],
-    "constraints": ["1 <= value.length <= 10^5", "0 <= value[i] <= 10^4"],
-    "hints": [
-      "Greedy fails. On [2,7,9,3,1] the largest element is 9, and committing to it blocks 7 and 3 — you would get 9 + 2 + 1 = 12 by luck here, but try [3,10,3,1,10,3] and the greedy ordering falls apart. You need to consider both choices at each step.",
-      "At week i you have exactly two options: skip it (and inherit the best answer through week i-1), or take it (and add value[i] to the best answer through week i-2). The recurrence is best[i] = max(best[i-1], best[i-2] + value[i]).",
-      "That recurrence only ever looks two steps back, so you do not need an array at all — two rolling integers are enough, giving O(1) space."
-    ],
-    "bruteForce": {
-      "idea": "Recursively try take-and-skip at every index. This explores every valid subset and re-solves identical subproblems over and over — the classic exponential recursion that memoisation exists to fix.",
-      "time": "O(2^n)",
-      "space": "O(n) recursion depth"
-    },
-    "optimal": {
-      "idea": "Bottom-up DP collapsed to two rolling variables. `take` is the best total that includes the current week, `skip` is the best that excludes it; each step recomputes both from the previous pair.",
-      "time": "O(n)",
-      "space": "O(1)"
-    },
-    "walkthrough": "Trace `value = [2, 7, 9, 3, 1]`. Let `prev2` = best through i-2, `prev1` = best through i-1.\n\nStart: `prev2 = 0`, `prev1 = 0`.\n\n| i | value[i] | skip = prev1 | take = prev2 + value[i] | best = max | new prev2 | new prev1 |\n|---|---|---|---|---|---|---|\n| 0 | 2 | 0 | 0 + 2 = 2 | **2** | 0 | 2 |\n| 1 | 7 | 2 | 0 + 7 = 7 | **7** | 2 | 7 |\n| 2 | 9 | 7 | 2 + 9 = 11 | **11** | 7 | 11 |\n| 3 | 3 | 11 | 7 + 3 = 10 | **11** | 11 | 11 |\n| 4 | 1 | 11 | 11 + 1 = 12 | **12** | 11 | 12 |\n\nAnswer: **12**.\n\nLook at row 3. Taking week 3 gives 10, skipping gives 11, so we skip — and critically, `prev1` becomes 11 while `prev2` also becomes 11. That is what lets week 4 add its 1 on top of the week-2 solution. The DP silently keeps the option open; a greedy that had committed to week 3 could not.\n\n**Why two variables and not an array:** the recurrence reads only `i-1` and `i-2`. Anything older is unreachable, so storing it is pure waste. This 'roll the window' collapse works on any DP whose recurrence has bounded look-back.",
-    "solutions": {
-      "python": "from typing import List\n\ndef max_return(value: List[int]) -> int:\n    prev2 = 0   # best total through week i-2\n    prev1 = 0   # best total through week i-1\n\n    for v in value:\n        # either skip this week (keep prev1) or take it (prev2 + v)\n        current = max(prev1, prev2 + v)\n        prev2, prev1 = prev1, current\n\n    return prev1",
-      "java": "class Solution {\n    public int maxReturn(int[] value) {\n        int prev2 = 0;   // best total through week i-2\n        int prev1 = 0;   // best total through week i-1\n\n        for (int v : value) {\n            // either skip this week (keep prev1) or take it (prev2 + v)\n            int current = Math.max(prev1, prev2 + v);\n            prev2 = prev1;\n            prev1 = current;\n        }\n\n        return prev1;\n    }\n}",
-      "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    int maxReturn(const std::vector<int>& value) {\n        int prev2 = 0;   // best total through week i-2\n        int prev1 = 0;   // best total through week i-1\n\n        for (int v : value) {\n            // either skip this week (keep prev1) or take it (prev2 + v)\n            int current = std::max(prev1, prev2 + v);\n            prev2 = prev1;\n            prev1 = current;\n        }\n\n        return prev1;\n    }\n};"
-    },
-    "edgeCases": [
-      "Single element → that element",
-      "Two elements → the larger of the two",
-      "All zeros → 0",
-      "Initialising prev1 to value[0] before the loop and then also iterating from index 0 double-counts week 0 — start both at 0 and let the loop handle it"
-    ],
-    "followUps": [
-      "The weeks are arranged in a circle so week 0 and week n-1 are adjacent — solve by running the linear version twice, on [0..n-2] and [1..n-1].",
-      "Reconstruct which weeks were chosen, not just the total.",
-      "Generalise to 'no two campaigns within k weeks' — what does the recurrence become?"
-    ],
-    "patternTakeaway": "When a choice at index i is constrained by index i-1, the answer is max(skip, take + best-from-i-2) — and a recurrence with bounded look-back collapses to O(1) rolling variables."
+ {
+  "id": "cd-01",
+  "title": "Non-Adjacent Campaign Budget",
+  "difficulty": "medium",
+  "topics": [
+   "Dynamic Programming",
+   "1D DP"
+  ],
+  "statement": "You are given an integer array `value` where `value[i]` is the return from running a campaign in week `i`.\n\nYou cannot run campaigns in two consecutive weeks — the audience needs a gap. Return the **maximum total return** you can achieve.\n\n**Input:** integer array `value`.\n**Output:** a single integer.",
+  "examples": [
+   {
+    "input": "value = [2,7,9,3,1]",
+    "output": "12",
+    "explanation": "Pick weeks 0, 2 and 4: 2 + 9 + 1 = 12. Picking 7 + 3 = 10 is worse, and 7 + 9 is illegal because those weeks are adjacent."
+   },
+   {
+    "input": "value = [5,1,1,5]",
+    "output": "10",
+    "explanation": "Weeks 0 and 3: 5 + 5 = 10. The greedy 'take the biggest first' happens to work here but fails on [2,7,9,3,1]."
+   }
+  ],
+  "constraints": [
+   "1 <= value.length <= 10^5",
+   "0 <= value[i] <= 10^4"
+  ],
+  "hints": [
+   "Greedy fails. On [2,7,9,3,1] the largest element is 9, and committing to it blocks 7 and 3 — you would get 9 + 2 + 1 = 12 by luck here, but try [3,10,3,1,10,3] and the greedy ordering falls apart. You need to consider both choices at each step.",
+   "At week i you have exactly two options: skip it (and inherit the best answer through week i-1), or take it (and add value[i] to the best answer through week i-2). The recurrence is best[i] = max(best[i-1], best[i-2] + value[i]).",
+   "That recurrence only ever looks two steps back, so you do not need an array at all — two rolling integers are enough, giving O(1) space."
+  ],
+  "bruteForce": {
+   "idea": "Recursively try take-and-skip at every index. This explores every valid subset and re-solves identical subproblems over and over — the classic exponential recursion that memoisation exists to fix.",
+   "time": "O(2^n)",
+   "space": "O(n) recursion depth"
   },
-  {
-    "id": "cd-02",
-    "title": "Fewest Credits to Reach a Spend Target",
-    "difficulty": "medium",
-    "topics": ["Dynamic Programming", "Unbounded Knapsack"],
-    "statement": "You are given an integer array `credits` of distinct credit-pack sizes and an integer `target`.\n\nYou have an unlimited supply of each pack size. Return the **fewest number of packs** that sum exactly to `target`. If the target cannot be reached, return `-1`.\n\n**Input:** integer array `credits`, integer `target`.\n**Output:** a single integer.",
-    "examples": [
-      { "input": "credits = [1,3,4], target = 6", "output": "2", "explanation": "3 + 3 = 6 uses two packs. The greedy 'take the largest first' gives 4 + 1 + 1 = 3 packs, which is worse — this is exactly why greedy is wrong here." },
-      { "input": "credits = [2], target = 3", "output": "-1", "explanation": "Only even totals are reachable with a pack of size 2." },
-      { "input": "credits = [5,2], target = 0", "output": "0", "explanation": "Zero packs are needed to reach zero." }
-    ],
-    "constraints": ["1 <= credits.length <= 12", "1 <= credits[i] <= 2^31 - 1", "0 <= target <= 10^4"],
-    "hints": [
-      "Check the greedy on example 1 before you trust it: largest-first gives 4+1+1 = 3 packs, but the optimum is 3+3 = 2. Greedy is only correct for special 'canonical' coin systems, and you are not promised one.",
-      "Define best[t] = the fewest packs summing to exactly t. What is best[0]? And how does best[t] relate to best[t - c] for each pack size c?",
-      "best[t] = 1 + min over all c <= t of best[t - c], with best[0] = 0 and unreachable amounts marked as infinity. Build the table upward from 1 to target so every subproblem you read is already final."
-    ],
-    "bruteForce": {
-      "idea": "Recursively subtract each pack size from the remaining target and take the shallowest branch that reaches zero. Explodes because the same remaining amount is re-solved through many different paths.",
-      "time": "O(len(credits)^target)",
-      "space": "O(target) recursion depth"
-    },
-    "optimal": {
-      "idea": "Bottom-up 1-D DP over amounts 0..target. Each amount consults every pack size once. Because packs are unlimited, the table is filled in increasing amount order and each entry reads only smaller, already-finalised entries.",
-      "time": "O(target * len(credits))",
-      "space": "O(target)"
-    },
-    "walkthrough": "Trace `credits = [1, 3, 4]`, `target = 6`. Write `INF` for unreachable. Initialise `best[0] = 0`.\n\n| t | candidates: 1 + best[t - c] for each c <= t | best[t] |\n|---|---|---|\n| 1 | c=1 → 1 + best[0] = 1 | **1** |\n| 2 | c=1 → 1 + best[1] = 2 | **2** |\n| 3 | c=1 → 1 + best[2] = 3; c=3 → 1 + best[0] = 1 | **1** |\n| 4 | c=1 → 1 + best[3] = 2; c=3 → 1 + best[1] = 2; c=4 → 1 + best[0] = 1 | **1** |\n| 5 | c=1 → 1 + best[4] = 2; c=3 → 1 + best[2] = 3; c=4 → 1 + best[1] = 2 | **2** |\n| 6 | c=1 → 1 + best[5] = 3; c=3 → 1 + best[3] = **2**; c=4 → 1 + best[2] = 3 | **2** |\n\nAnswer: `best[6] = 2`, achieved by 3 + 3.\n\nNotice row 6: the greedy instinct picks `c = 4` because it is the biggest pack that fits, giving 3. The DP evaluates all three options and finds that going through `best[3] = 1` is better. The table has already computed that 3 is reachable in a single pack, so it can exploit that.\n\n**The overflow trap.** Constraints allow `credits[i]` up to 2³¹−1. If you initialise the table with `Integer.MAX_VALUE` and then compute `1 + best[t - c]` without first checking that `best[t - c]` is reachable, you overflow to a negative number and the `min` happily accepts it. Guard with an explicit reachability check, as the code below does.",
-    "solutions": {
-      "python": "from typing import List\n\ndef fewest_packs(credits: List[int], target: int) -> int:\n    INF = float('inf')\n    best = [INF] * (target + 1)\n    best[0] = 0                      # zero packs make zero\n\n    for t in range(1, target + 1):\n        for c in credits:\n            if c <= t and best[t - c] != INF:\n                best[t] = min(best[t], best[t - c] + 1)\n\n    return -1 if best[target] == INF else best[target]",
-      "java": "import java.util.*;\n\nclass Solution {\n    public int fewestPacks(int[] credits, int target) {\n        final int UNREACHABLE = Integer.MAX_VALUE;\n        int[] best = new int[target + 1];\n        Arrays.fill(best, UNREACHABLE);\n        best[0] = 0;                     // zero packs make zero\n\n        for (int t = 1; t <= target; t++) {\n            for (int c : credits) {\n                // c <= t guards the index; the reachability check prevents\n                // MAX_VALUE + 1 from overflowing to a negative number.\n                if (c <= t && best[t - c] != UNREACHABLE) {\n                    best[t] = Math.min(best[t], best[t - c] + 1);\n                }\n            }\n        }\n\n        return best[target] == UNREACHABLE ? -1 : best[target];\n    }\n}",
-      "cpp": "#include <vector>\n#include <algorithm>\n#include <climits>\n\nclass Solution {\npublic:\n    int fewestPacks(const std::vector<int>& credits, int target) {\n        const int UNREACHABLE = INT_MAX;\n        std::vector<int> best(target + 1, UNREACHABLE);\n        best[0] = 0;                     // zero packs make zero\n\n        for (int t = 1; t <= target; ++t) {\n            for (int c : credits) {\n                // c <= t guards the index; the reachability check prevents\n                // INT_MAX + 1 from overflowing to a negative number.\n                if (c <= t && best[t - c] != UNREACHABLE) {\n                    best[t] = std::min(best[t], best[t - c] + 1);\n                }\n            }\n        }\n\n        return best[target] == UNREACHABLE ? -1 : best[target];\n    }\n};"
-    },
-    "edgeCases": [
-      "target = 0 → 0, and the table must be sized target+1 so index 0 exists",
-      "No combination reaches the target → -1, not 0 and not a huge number",
-      "A single pack size larger than the target → -1",
-      "Pack sizes near 2^31-1 with an unguarded INF + 1 → silent integer overflow, the classic wrong answer here",
-      "credits containing a value equal to target → 1"
-    ],
-    "followUps": [
-      "Count the number of distinct combinations reaching the target instead of the minimum count — note the loop order flips to avoid counting permutations.",
-      "Return the actual multiset of packs used, by storing a parent pointer per amount.",
-      "target grows to 10^9 but len(credits) stays tiny — the DP is dead; what number-theoretic approach works?"
-    ],
-    "patternTakeaway": "Unbounded knapsack: best[t] = 1 + min(best[t - c]) built upward from 0 — and always check reachability before adding 1, or your sentinel overflows."
+  "optimal": {
+   "idea": "Bottom-up DP collapsed to two rolling variables. `take` is the best total that includes the current week, `skip` is the best that excludes it; each step recomputes both from the previous pair.",
+   "time": "O(n)",
+   "space": "O(1)"
   },
-  {
-    "id": "cd-03",
-    "title": "Longest Shared Message Sequence",
-    "difficulty": "medium",
-    "topics": ["Dynamic Programming", "2D DP", "Strings"],
-    "statement": "Two assistants produced answers `a` and `b` about your brand. To measure how much they overlap, find the length of the **longest common subsequence** of the two strings.\n\nA subsequence keeps the original relative order but may skip characters; it does not need to be contiguous.\n\n**Input:** two strings `a` and `b`.\n**Output:** a single integer — the length of the longest common subsequence.",
-    "examples": [
-      { "input": "a = \"abcde\", b = \"ace\"", "output": "3", "explanation": "\"ace\" appears in \"abcde\" in order (skipping b and d), so the LCS has length 3." },
-      { "input": "a = \"abc\", b = \"def\"", "output": "0", "explanation": "No characters in common." },
-      { "input": "a = \"abc\", b = \"abc\"", "output": "3", "explanation": "Identical strings — the whole string is common." }
-    ],
-    "constraints": ["1 <= a.length, b.length <= 1000", "a and b consist of lowercase English letters"],
-    "hints": [
-      "Compare the last characters of the two strings. If they match, that character can safely be part of the answer — why is it never wrong to include it? If they differ, at least one of them cannot be in the LCS.",
-      "Let dp[i][j] be the LCS length of the first i characters of a and the first j of b. When a[i-1] == b[j-1], dp[i][j] = dp[i-1][j-1] + 1. Otherwise dp[i][j] = max(dp[i-1][j], dp[i][j-1]).",
-      "Row i only ever reads row i-1, so if memory is tight you can keep two rows instead of the full table — but with lengths capped at 1000 the full 1001x1001 table is fine and much easier to debug."
-    ],
-    "bruteForce": {
-      "idea": "Enumerate every subsequence of a (2^n of them) and test each for being a subsequence of b. Correct and completely infeasible beyond about n = 20.",
-      "time": "O(2^n * m)",
-      "space": "O(n)"
-    },
-    "optimal": {
-      "idea": "Fill a 2-D table where dp[i][j] answers the prefix-versus-prefix subproblem. Every cell is computed once in O(1) from three neighbours, so the table fill is the total cost.",
-      "time": "O(n * m)",
-      "space": "O(n * m), reducible to O(min(n, m))"
-    },
-    "walkthrough": "Trace `a = \"abcde\"` (rows) against `b = \"ace\"` (columns). Row 0 and column 0 are all zeros — an empty prefix shares nothing.\n\n|  | ∅ | a | c | e |\n|---|---|---|---|---|\n| **∅** | 0 | 0 | 0 | 0 |\n| **a** | 0 | **1** | 1 | 1 |\n| **b** | 0 | 1 | 1 | 1 |\n| **c** | 0 | 1 | **2** | 2 |\n| **d** | 0 | 1 | 2 | 2 |\n| **e** | 0 | 1 | 2 | **3** |\n\nRead a few cells:\n\n- **(a, a)** — characters match, so take the diagonal `dp[0][0] = 0` and add 1 → **1**.\n- **(b, a)** — `'b' != 'a'`, so take `max(dp[above] = 1, dp[left] = 0) = 1`. The `b` contributed nothing but we keep the best result found so far.\n- **(c, c)** — match, so diagonal `dp[\"ab\",\"a\"] = 1` plus 1 → **2**.\n- **(e, e)** — match, diagonal `dp[\"abcd\",\"ac\"] = 2` plus 1 → **3**.\n\nBottom-right cell = **3**.\n\n**Why taking a match is always safe:** if `a[i-1] == b[j-1] == x`, there is always an optimal LCS that ends with that `x`. Any LCS not using this pair can be rewritten to use it without getting shorter. That is what licenses the unconditional `dp[i-1][j-1] + 1` — no `max` needed on the match branch.\n\n**Do not confuse this with longest common substring**, which requires contiguity and has a different recurrence: the mismatch case resets to 0 rather than inheriting the max.",
-    "solutions": {
-      "python": "def longest_common_subsequence(a: str, b: str) -> int:\n    n, m = len(a), len(b)\n    # dp[i][j] = LCS length of a[:i] and b[:j]; row/col 0 mean empty prefix\n    dp = [[0] * (m + 1) for _ in range(n + 1)]\n\n    for i in range(1, n + 1):\n        for j in range(1, m + 1):\n            if a[i - 1] == b[j - 1]:\n                # a match is always safe to take - no max needed here\n                dp[i][j] = dp[i - 1][j - 1] + 1\n            else:\n                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])\n\n    return dp[n][m]",
-      "java": "class Solution {\n    public int longestCommonSubsequence(String a, String b) {\n        int n = a.length(), m = b.length();\n        // dp[i][j] = LCS length of a[0..i) and b[0..j); row/col 0 = empty prefix\n        int[][] dp = new int[n + 1][m + 1];\n\n        for (int i = 1; i <= n; i++) {\n            for (int j = 1; j <= m; j++) {\n                if (a.charAt(i - 1) == b.charAt(j - 1)) {\n                    // a match is always safe to take - no max needed here\n                    dp[i][j] = dp[i - 1][j - 1] + 1;\n                } else {\n                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n                }\n            }\n        }\n\n        return dp[n][m];\n    }\n}",
-      "cpp": "#include <string>\n#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    int longestCommonSubsequence(const std::string& a, const std::string& b) {\n        int n = static_cast<int>(a.size());\n        int m = static_cast<int>(b.size());\n        // dp[i][j] = LCS length of a[0..i) and b[0..j); row/col 0 = empty prefix\n        std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));\n\n        for (int i = 1; i <= n; ++i) {\n            for (int j = 1; j <= m; ++j) {\n                if (a[i - 1] == b[j - 1]) {\n                    // a match is always safe to take - no max needed here\n                    dp[i][j] = dp[i - 1][j - 1] + 1;\n                } else {\n                    dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);\n                }\n            }\n        }\n\n        return dp[n][m];\n    }\n};"
-    },
-    "edgeCases": [
-      "No common characters → 0",
-      "Identical strings → full length",
-      "One string a subsequence of the other → the shorter length",
-      "Off-by-one on the string index: dp indices are 1-based but string indices are 0-based, hence a[i-1]",
-      "Confusing this with longest common SUBSTRING, where a mismatch resets the cell to 0"
-    ],
-    "followUps": [
-      "Reconstruct the actual subsequence by walking the table backwards from dp[n][m].",
-      "Reduce space to two rows — or to one row with a saved diagonal.",
-      "Compute the edit distance between the two strings; the recurrence is a close cousin with three operations instead of two."
-    ],
-    "patternTakeaway": "Two-sequence DP is a grid over prefix pairs: match → diagonal + 1, mismatch → max of the two neighbours; row i reads only row i-1, which is what lets you shrink the space."
+  "walkthrough": "Trace `value = [2, 7, 9, 3, 1]`. Let `prev2` = best through i-2, `prev1` = best through i-1.\n\nStart: `prev2 = 0`, `prev1 = 0`.\n\n| i | value[i] | skip = prev1 | take = prev2 + value[i] | best = max | new prev2 | new prev1 |\n|---|---|---|---|---|---|---|\n| 0 | 2 | 0 | 0 + 2 = 2 | **2** | 0 | 2 |\n| 1 | 7 | 2 | 0 + 7 = 7 | **7** | 2 | 7 |\n| 2 | 9 | 7 | 2 + 9 = 11 | **11** | 7 | 11 |\n| 3 | 3 | 11 | 7 + 3 = 10 | **11** | 11 | 11 |\n| 4 | 1 | 11 | 11 + 1 = 12 | **12** | 11 | 12 |\n\nAnswer: **12**.\n\nLook at row 3. Taking week 3 gives 10, skipping gives 11, so we skip — and critically, `prev1` becomes 11 while `prev2` also becomes 11. That is what lets week 4 add its 1 on top of the week-2 solution. The DP silently keeps the option open; a greedy that had committed to week 3 could not.\n\n**Why two variables and not an array:** the recurrence reads only `i-1` and `i-2`. Anything older is unreachable, so storing it is pure waste. This 'roll the window' collapse works on any DP whose recurrence has bounded look-back.",
+  "solutions": {
+   "python": "from typing import List\n\ndef max_return(value: List[int]) -> int:\n    prev2 = 0   # best total through week i-2\n    prev1 = 0   # best total through week i-1\n\n    for v in value:\n        # either skip this week (keep prev1) or take it (prev2 + v)\n        current = max(prev1, prev2 + v)\n        prev2, prev1 = prev1, current\n\n    return prev1",
+   "java": "class Solution {\n    public int maxReturn(int[] value) {\n        int prev2 = 0;   // best total through week i-2\n        int prev1 = 0;   // best total through week i-1\n\n        for (int v : value) {\n            // either skip this week (keep prev1) or take it (prev2 + v)\n            int current = Math.max(prev1, prev2 + v);\n            prev2 = prev1;\n            prev1 = current;\n        }\n\n        return prev1;\n    }\n}",
+   "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    int maxReturn(const std::vector<int>& value) {\n        int prev2 = 0;   // best total through week i-2\n        int prev1 = 0;   // best total through week i-1\n\n        for (int v : value) {\n            // either skip this week (keep prev1) or take it (prev2 + v)\n            int current = std::max(prev1, prev2 + v);\n            prev2 = prev1;\n            prev1 = current;\n        }\n\n        return prev1;\n    }\n};"
   },
-  {
-    "id": "ce-01",
-    "title": "Rotate an Asset Grid In Place",
-    "difficulty": "medium",
-    "topics": ["Matrix", "Implementation", "In-Place"],
-    "statement": "You are given an `n x n` matrix representing an image asset. Rotate it **90 degrees clockwise, in place** — you must modify the input matrix directly and may not allocate another n x n matrix.\n\n**Input:** an `n x n` integer matrix.\n**Output:** none; mutate the input.",
-    "examples": [
-      { "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]", "output": "[[7,4,1],[8,5,2],[9,6,3]]", "explanation": "The first column bottom-to-top (7,4,1) becomes the first row." },
-      { "input": "matrix = [[1,2],[3,4]]", "output": "[[3,1],[4,2]]", "explanation": "A 2x2 rotation." }
-    ],
-    "constraints": ["n == matrix.length == matrix[i].length", "1 <= n <= 20", "-1000 <= matrix[i][j] <= 1000"],
-    "hints": [
-      "Write down where a single element ends up. Element at (r, c) lands at (c, n-1-r). Try to build that mapping out of two simpler operations you already know how to do in place.",
-      "Transpose (reflect across the main diagonal) sends (r, c) to (c, r). What single reflection do you still need afterwards to turn (c, r) into (c, n-1-r)?",
-      "Transpose, then reverse each row. The transpose loop must start its inner index at `c = r`, not `c = 0` — otherwise you swap every pair twice and end up back where you started."
-    ],
-    "bruteForce": {
-      "idea": "Allocate a fresh n x n matrix, write result[c][n-1-r] = matrix[r][c], then copy it back. Trivially correct but violates the in-place constraint and uses O(n^2) extra memory.",
-      "time": "O(n^2)",
-      "space": "O(n^2)"
-    },
-    "optimal": {
-      "idea": "Two in-place passes: transpose across the main diagonal, then reverse each row. Both are simple swap loops with no extra allocation.",
-      "time": "O(n^2)",
-      "space": "O(1)"
-    },
-    "walkthrough": "Take the 3x3:\n\n```\n1 2 3\n4 5 6\n7 8 9\n```\n\n**Pass 1 — transpose.** Swap `matrix[r][c]` with `matrix[c][r]` for every `c > r`, i.e. only the upper triangle.\n\n| swap | result so far |\n|---|---|\n| (0,1) ↔ (1,0) | 1 4 3 / 2 5 6 / 7 8 9 |\n| (0,2) ↔ (2,0) | 1 4 7 / 2 5 6 / 3 8 9 |\n| (1,2) ↔ (2,1) | 1 4 7 / 2 5 8 / 3 6 9 |\n\n```\n1 4 7\n2 5 8\n3 6 9\n```\n\n**Pass 2 — reverse each row.**\n\n```\n7 4 1\n8 5 2\n9 6 3\n```\n\nWhich is the required output.\n\n**Why the inner loop starts at `c = r`.** If it started at `c = 0`, the pair (0,1)↔(1,0) would be swapped once when `r=0, c=1` and swapped *back* when `r=1, c=0`. Every swap would be undone and the matrix would come out unchanged — a bug that produces a perfectly plausible-looking 'no rotation happened' result rather than a crash.\n\n**For 90° anticlockwise** it is the same trick with the second step changed: transpose, then reverse each *column* (equivalently, reverse the order of the rows).",
-    "solutions": {
-      "python": "from typing import List\n\ndef rotate(matrix: List[List[int]]) -> None:\n    n = len(matrix)\n\n    # Pass 1: transpose across the main diagonal.\n    # Inner loop starts at c = r so each pair is swapped exactly once.\n    for r in range(n):\n        for c in range(r + 1, n):\n            matrix[r][c], matrix[c][r] = matrix[c][r], matrix[r][c]\n\n    # Pass 2: reverse each row\n    for row in matrix:\n        row.reverse()",
-      "java": "class Solution {\n    public void rotate(int[][] matrix) {\n        int n = matrix.length;\n\n        // Pass 1: transpose across the main diagonal.\n        // Inner loop starts at c = r + 1 so each pair is swapped exactly once.\n        for (int r = 0; r < n; r++) {\n            for (int c = r + 1; c < n; c++) {\n                int tmp = matrix[r][c];\n                matrix[r][c] = matrix[c][r];\n                matrix[c][r] = tmp;\n            }\n        }\n\n        // Pass 2: reverse each row\n        for (int r = 0; r < n; r++) {\n            int left = 0, right = n - 1;\n            while (left < right) {\n                int tmp = matrix[r][left];\n                matrix[r][left] = matrix[r][right];\n                matrix[r][right] = tmp;\n                left++;\n                right--;\n            }\n        }\n    }\n}",
-      "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    void rotate(std::vector<std::vector<int>>& matrix) {\n        int n = static_cast<int>(matrix.size());\n\n        // Pass 1: transpose across the main diagonal.\n        // Inner loop starts at c = r + 1 so each pair is swapped exactly once.\n        for (int r = 0; r < n; ++r) {\n            for (int c = r + 1; c < n; ++c) {\n                std::swap(matrix[r][c], matrix[c][r]);\n            }\n        }\n\n        // Pass 2: reverse each row\n        for (int r = 0; r < n; ++r) {\n            std::reverse(matrix[r].begin(), matrix[r].end());\n        }\n    }\n};"
-    },
-    "edgeCases": [
-      "n = 1 → unchanged",
-      "n = 2 → the smallest case where a double-swap bug is visible",
-      "Inner transpose loop starting at c = 0 → every swap undone, matrix unchanged",
-      "Returning a new matrix instead of mutating — fails the in-place requirement even though the values are right"
-    ],
-    "followUps": [
-      "Rotate 90 degrees anticlockwise instead — transpose then reverse rows top-to-bottom.",
-      "Rotate a rectangular m x n matrix; why can that not be done in place?",
-      "Do it with the four-way cyclic swap of layers, touching each element exactly once."
-    ],
-    "patternTakeaway": "In-place matrix rotation = transpose then reverse rows; the transpose inner loop must start at c = r + 1 or every swap is undone."
-  },
-  {
-    "id": "ce-02",
-    "title": "The Unpaired Session ID",
-    "difficulty": "easy",
-    "topics": ["Bit Manipulation", "Arrays", "XOR"],
-    "statement": "Every session in a log was recorded exactly twice, except for one session that was recorded only once.\n\nGiven the array `ids`, return the id that appears only once. Solve it in linear time using constant extra space.\n\n**Input:** integer array `ids`.\n**Output:** a single integer.",
-    "examples": [
-      { "input": "ids = [4,1,2,1,2]", "output": "4", "explanation": "1 and 2 each appear twice; 4 appears once." },
-      { "input": "ids = [7]", "output": "7", "explanation": "A single element is by definition the unpaired one." }
-    ],
-    "constraints": ["1 <= ids.length <= 3 * 10^4", "ids.length is odd", "-3 * 10^4 <= ids[i] <= 3 * 10^4", "every element appears exactly twice except one"],
-    "hints": [
-      "A hash set solves this immediately but costs O(n) space, and the problem explicitly asks for O(1). So you need an operation that makes duplicates cancel each other out.",
-      "XOR has three properties that matter here: x ^ x == 0, x ^ 0 == x, and it is commutative and associative — so the order you apply it in does not matter at all.",
-      "XOR every element together. Each duplicated pair collapses to 0 regardless of where the two copies sit in the array, and 0 ^ unique == unique."
-    ],
-    "bruteForce": {
-      "idea": "Count occurrences in a hash map, then scan for the entry with count 1. Linear time but O(n) space, which the constraints rule out.",
-      "time": "O(n)",
-      "space": "O(n)"
-    },
-    "optimal": {
-      "idea": "Fold the whole array with XOR into a single accumulator. Pairs annihilate; the survivor is the answer.",
-      "time": "O(n)",
-      "space": "O(1)"
-    },
-    "walkthrough": "Trace `ids = [4, 1, 2, 1, 2]` with `result = 0`. Values shown in binary for clarity.\n\n| step | element | operation | result (binary) | result |\n|---|---|---|---|---|\n| start | — | — | 000 | 0 |\n| 1 | 4 (100) | 0 ^ 4 | 100 | 4 |\n| 2 | 1 (001) | 4 ^ 1 | 101 | 5 |\n| 3 | 2 (010) | 5 ^ 2 | 111 | 7 |\n| 4 | 1 (001) | 7 ^ 1 | 110 | 6 |\n| 5 | 2 (010) | 6 ^ 2 | 100 | 4 |\n\nResult: **4**.\n\nWatch what happened to the 1s: the low bit was set at step 2 and cleared again at step 4. Same for the 2s at steps 3 and 5. Because XOR is commutative and associative, the expression is equivalent to `4 ^ (1 ^ 1) ^ (2 ^ 2)` = `4 ^ 0 ^ 0` = `4` — and that regrouping is legal *no matter how the duplicates are scattered* through the array. The array does not need to be sorted, and the pairs do not need to be adjacent.\n\nNegative numbers are fine too: XOR operates on the two's-complement bit pattern, and a value XORed with itself is still zero whatever those bits are.",
-    "solutions": {
-      "python": "from typing import List\n\ndef find_unpaired(ids: List[int]) -> int:\n    result = 0\n    for value in ids:\n        # x ^ x == 0, so every duplicated pair cancels out\n        result ^= value\n    return result",
-      "java": "class Solution {\n    public int findUnpaired(int[] ids) {\n        int result = 0;\n        for (int value : ids) {\n            // x ^ x == 0, so every duplicated pair cancels out\n            result ^= value;\n        }\n        return result;\n    }\n}",
-      "cpp": "#include <vector>\n\nclass Solution {\npublic:\n    int findUnpaired(const std::vector<int>& ids) {\n        int result = 0;\n        for (int value : ids) {\n            // x ^ x == 0, so every duplicated pair cancels out\n            result ^= value;\n        }\n        return result;\n    }\n};"
-    },
-    "edgeCases": [
-      "Single element → returns it",
-      "Negative values → fine, XOR works on the bit pattern",
-      "The unpaired element is 0 → returns 0 correctly, but a 'return the first non-cancelled value' hack would not",
-      "Duplicates far apart in the array → order is irrelevant to XOR"
-    ],
-    "followUps": [
-      "Two elements appear once instead of one — split the array by any set bit of the total XOR and solve each half.",
-      "Every element appears three times except one; XOR no longer cancels, so count bits modulo 3 instead.",
-      "Find the missing number in 0..n — XOR the array against 0..n."
-    ],
-    "patternTakeaway": "XOR is the constant-space cancellation tool: x ^ x = 0 and x ^ 0 = x, and because it commutes the duplicates can be anywhere in the array."
-  },
-  {
-    "id": "ce-03",
-    "title": "Share of Voice Across AI Answers",
-    "difficulty": "medium",
-    "topics": ["Hash Map", "Sorting", "Simulation", "String Parsing"],
-    "statement": "You are measuring how visible brands are inside AI assistant answers.\n\nYou are given `answers`, a list of strings. Each string is one assistant answer, formatted as space-separated brand mentions. A mention has the form `brand:position`, where `position` is a 1-based integer giving where the brand was cited in that answer (position 1 is the first citation).\n\nA mention scores `1.0 / position` points — being cited first is worth much more than being cited fifth.\n\nReturn the brands ranked by **share of voice**: a brand's share is its total score divided by the total score of all brands. Rank by share descending; break ties by brand name ascending. Round each share to 4 decimal places.\n\n**Input:** list of strings `answers`.\n**Output:** list of `[brand, share]` pairs.",
-    "examples": [
-      {
-        "input": "answers = [\"acme:1 globex:2\", \"globex:1 acme:2\"]",
-        "output": "[[\"acme\",0.5],[\"globex\",0.5]]",
-        "explanation": "acme scores 1/1 + 1/2 = 1.5; globex scores 1/2 + 1/1 = 1.5. Total 3.0, so each holds 0.5. The tie is broken alphabetically."
-      },
-      {
-        "input": "answers = [\"acme:1\", \"acme:1\", \"globex:2\"]",
-        "output": "[[\"acme\",0.8],[\"globex\",0.2]]",
-        "explanation": "acme scores 1 + 1 = 2.0; globex scores 0.5. Total 2.5 → acme 2.0/2.5 = 0.8, globex 0.5/2.5 = 0.2."
-      }
-    ],
-    "constraints": ["1 <= answers.length <= 10^4", "each answer contains between 1 and 20 mentions", "brand names are lowercase letters, length <= 20", "1 <= position <= 20"],
-    "hints": [
-      "There are three separate steps hiding in here: parse, aggregate, rank. Do them one at a time rather than trying to fuse them — fused parsing-and-ranking code is where the bugs live.",
-      "Parsing: split each answer on spaces, then split each token on ':' to get the brand and the position. Accumulate into a hash map from brand to running score.",
-      "Compute the grand total in the same pass you build the map, then divide. Do the rounding only at the very end — rounding each mention as you go accumulates error and can flip a tie."
-    ],
-    "bruteForce": {
-      "idea": "Collect every mention into a flat list, then for each distinct brand rescan the whole list summing its score. Correct but quadratic in the number of mentions.",
-      "time": "O(M * B) for M mentions and B brands",
-      "space": "O(M)"
-    },
-    "optimal": {
-      "idea": "One pass to parse and accumulate scores into a hash map while tracking the grand total, then one sort of the distinct brands. Sorting dominates.",
-      "time": "O(M + B log B)",
-      "space": "O(B)"
-    },
-    "walkthrough": "Take `answers = [\"acme:1\", \"acme:1\", \"globex:2\"]`.\n\n**Step 1 — parse and accumulate.**\n\n| answer | token | brand | position | score added | map after | total |\n|---|---|---|---|---|---|---|\n| \"acme:1\" | acme:1 | acme | 1 | 1/1 = 1.0 | {acme: 1.0} | 1.0 |\n| \"acme:1\" | acme:1 | acme | 1 | 1/1 = 1.0 | {acme: 2.0} | 2.0 |\n| \"globex:2\" | globex:2 | globex | 2 | 1/2 = 0.5 | {acme: 2.0, globex: 0.5} | 2.5 |\n\n**Step 2 — divide by the grand total (2.5).**\n\n| brand | score | share |\n|---|---|---|\n| acme | 2.0 | 2.0 / 2.5 = 0.8 |\n| globex | 0.5 | 0.5 / 2.5 = 0.2 |\n\n**Step 3 — sort by share descending, then name ascending** → `[[\"acme\", 0.8], [\"globex\", 0.2]]`.\n\n**The floating-point trap.** Shares are doubles, and comparing them with `==` for the tie-break is unreliable — `1.5/3.0` and `1.5/3.0` computed by different routes may differ in the last bit. In the tie-break, compare with a small epsilon (as the code below does) rather than exact equality, or compare the integer-scaled rounded values. Example 1 is exactly this case: two brands that must tie and then be ordered alphabetically.\n\n**Why 1/position and not a flat count?** Because it encodes the actual finding this whole theme rests on — in a generative answer, the first cited source captures far more attention than the fourth. A flat mention count would rate 'mentioned last in every answer' equal to 'always cited first', which is exactly the wrong signal for a brand visibility dashboard.",
-    "solutions": {
-      "python": "from typing import List\n\ndef share_of_voice(answers: List[str]) -> List[list]:\n    scores = {}\n    total = 0.0\n\n    # Step 1: parse and accumulate in a single pass\n    for answer in answers:\n        for token in answer.split():\n            brand, _, position_text = token.partition(':')\n            position = int(position_text)\n            points = 1.0 / position          # first citation is worth the most\n            scores[brand] = scores.get(brand, 0.0) + points\n            total += points\n\n    # Step 2: convert to shares (guard against an empty input)\n    if total == 0.0:\n        return []\n    ranked = [[brand, score / total] for brand, score in scores.items()]\n\n    # Step 3: share descending, then name ascending.\n    # Round first so the sort and the output agree on the tie-break.\n    ranked = [[brand, round(share, 4)] for brand, share in ranked]\n    ranked.sort(key=lambda pair: (-pair[1], pair[0]))\n    return ranked",
-      "java": "import java.util.*;\n\nclass Solution {\n    public List<Object[]> shareOfVoice(String[] answers) {\n        Map<String, Double> scores = new HashMap<>();\n        double total = 0.0;\n\n        // Step 1: parse and accumulate in a single pass\n        for (String answer : answers) {\n            for (String token : answer.split(\" \")) {\n                if (token.isEmpty()) continue;\n                int colon = token.lastIndexOf(':');\n                String brand = token.substring(0, colon);\n                int position = Integer.parseInt(token.substring(colon + 1));\n                double points = 1.0 / position;    // first citation is worth the most\n                scores.put(brand, scores.getOrDefault(brand, 0.0) + points);\n                total += points;\n            }\n        }\n\n        List<Object[]> ranked = new ArrayList<>();\n        if (total == 0.0) return ranked;\n\n        // Step 2: convert to shares, rounded to 4 decimal places\n        for (Map.Entry<String, Double> e : scores.entrySet()) {\n            double share = Math.round(e.getValue() / total * 10000.0) / 10000.0;\n            ranked.add(new Object[]{e.getKey(), share});\n        }\n\n        // Step 3: share descending, then name ascending.\n        // Compare doubles with an epsilon, never with ==.\n        ranked.sort((a, b) -> {\n            double sa = (Double) a[1], sb = (Double) b[1];\n            if (Math.abs(sa - sb) > 1e-9) return Double.compare(sb, sa);\n            return ((String) a[0]).compareTo((String) b[0]);\n        });\n\n        return ranked;\n    }\n}",
-      "cpp": "#include <string>\n#include <vector>\n#include <unordered_map>\n#include <algorithm>\n#include <sstream>\n#include <cmath>\n\nclass Solution {\npublic:\n    std::vector<std::pair<std::string, double>> shareOfVoice(const std::vector<std::string>& answers) {\n        std::unordered_map<std::string, double> scores;\n        double total = 0.0;\n\n        // Step 1: parse and accumulate in a single pass\n        for (const auto& answer : answers) {\n            std::istringstream stream(answer);\n            std::string token;\n            while (stream >> token) {\n                size_t colon = token.rfind(':');\n                if (colon == std::string::npos) continue;\n                std::string brand = token.substr(0, colon);\n                int position = std::stoi(token.substr(colon + 1));\n                double points = 1.0 / position;   // first citation is worth the most\n                scores[brand] += points;\n                total += points;\n            }\n        }\n\n        std::vector<std::pair<std::string, double>> ranked;\n        if (total == 0.0) return ranked;\n\n        // Step 2: convert to shares, rounded to 4 decimal places\n        for (const auto& kv : scores) {\n            double share = std::round(kv.second / total * 10000.0) / 10000.0;\n            ranked.push_back({kv.first, share});\n        }\n\n        // Step 3: share descending, then name ascending.\n        // Compare doubles with an epsilon, never with ==.\n        std::sort(ranked.begin(), ranked.end(),\n                  [](const std::pair<std::string, double>& a,\n                     const std::pair<std::string, double>& b) {\n                      if (std::fabs(a.second - b.second) > 1e-9) return a.second > b.second;\n                      return a.first < b.first;\n                  });\n\n        return ranked;\n    }\n};"
-    },
-    "edgeCases": [
-      "A single brand in a single answer → share 1.0",
-      "Exact ties requiring the alphabetical tie-break — comparing doubles with == breaks here",
-      "The same brand mentioned twice in one answer at different positions — both mentions count",
-      "Brand names containing no colon, or an empty token from a double space",
-      "Rounding per-mention instead of once at the end, which accumulates error and can flip a tie"
-    ],
-    "followUps": [
-      "Weight each answer by how often that prompt is actually asked, so share of voice reflects real traffic.",
-      "Report the change in share versus a previous run and flag statistically significant moves.",
-      "Positions can now be tied (two brands cited jointly first) — how does the scoring change?"
-    ],
-    "patternTakeaway": "Parse, aggregate, then rank — as three separate passes; and never break a tie on floating-point equality, always use an epsilon or a scaled integer."
+  "edgeCases": [
+   "Single element → that element",
+   "Two elements → the larger of the two",
+   "All zeros → 0",
+   "Initialising prev1 to value[0] before the loop and then also iterating from index 0 double-counts week 0 — start both at 0 and let the loop handle it"
+  ],
+  "followUps": [
+   "The weeks are arranged in a circle so week 0 and week n-1 are adjacent — solve by running the linear version twice, on [0..n-2] and [1..n-1].",
+   "Reconstruct which weeks were chosen, not just the total.",
+   "Generalise to 'no two campaigns within k weeks' — what does the recurrence become?"
+  ],
+  "patternTakeaway": "When a choice at index i is constrained by index i-1, the answer is max(skip, take + best-from-i-2) — and a recurrence with bounded look-back collapses to O(1) rolling variables.",
+  "practice": {
+   "note": "Same non-adjacent DP collapsed to two rolling variables.",
+   "links": [
+    {
+     "name": "LeetCode 198 · House Robber",
+     "url": "https://leetcode.com/problems/house-robber/"
+    }
+   ]
   }
+ },
+ {
+  "id": "cd-02",
+  "title": "Fewest Credits to Reach a Spend Target",
+  "difficulty": "medium",
+  "topics": [
+   "Dynamic Programming",
+   "Unbounded Knapsack"
+  ],
+  "statement": "You are given an integer array `credits` of distinct credit-pack sizes and an integer `target`.\n\nYou have an unlimited supply of each pack size. Return the **fewest number of packs** that sum exactly to `target`. If the target cannot be reached, return `-1`.\n\n**Input:** integer array `credits`, integer `target`.\n**Output:** a single integer.",
+  "examples": [
+   {
+    "input": "credits = [1,3,4], target = 6",
+    "output": "2",
+    "explanation": "3 + 3 = 6 uses two packs. The greedy 'take the largest first' gives 4 + 1 + 1 = 3 packs, which is worse — this is exactly why greedy is wrong here."
+   },
+   {
+    "input": "credits = [2], target = 3",
+    "output": "-1",
+    "explanation": "Only even totals are reachable with a pack of size 2."
+   },
+   {
+    "input": "credits = [5,2], target = 0",
+    "output": "0",
+    "explanation": "Zero packs are needed to reach zero."
+   }
+  ],
+  "constraints": [
+   "1 <= credits.length <= 12",
+   "1 <= credits[i] <= 2^31 - 1",
+   "0 <= target <= 10^4"
+  ],
+  "hints": [
+   "Check the greedy on example 1 before you trust it: largest-first gives 4+1+1 = 3 packs, but the optimum is 3+3 = 2. Greedy is only correct for special 'canonical' coin systems, and you are not promised one.",
+   "Define best[t] = the fewest packs summing to exactly t. What is best[0]? And how does best[t] relate to best[t - c] for each pack size c?",
+   "best[t] = 1 + min over all c <= t of best[t - c], with best[0] = 0 and unreachable amounts marked as infinity. Build the table upward from 1 to target so every subproblem you read is already final."
+  ],
+  "bruteForce": {
+   "idea": "Recursively subtract each pack size from the remaining target and take the shallowest branch that reaches zero. Explodes because the same remaining amount is re-solved through many different paths.",
+   "time": "O(len(credits)^target)",
+   "space": "O(target) recursion depth"
+  },
+  "optimal": {
+   "idea": "Bottom-up 1-D DP over amounts 0..target. Each amount consults every pack size once. Because packs are unlimited, the table is filled in increasing amount order and each entry reads only smaller, already-finalised entries.",
+   "time": "O(target * len(credits))",
+   "space": "O(target)"
+  },
+  "walkthrough": "Trace `credits = [1, 3, 4]`, `target = 6`. Write `INF` for unreachable. Initialise `best[0] = 0`.\n\n| t | candidates: 1 + best[t - c] for each c <= t | best[t] |\n|---|---|---|\n| 1 | c=1 → 1 + best[0] = 1 | **1** |\n| 2 | c=1 → 1 + best[1] = 2 | **2** |\n| 3 | c=1 → 1 + best[2] = 3; c=3 → 1 + best[0] = 1 | **1** |\n| 4 | c=1 → 1 + best[3] = 2; c=3 → 1 + best[1] = 2; c=4 → 1 + best[0] = 1 | **1** |\n| 5 | c=1 → 1 + best[4] = 2; c=3 → 1 + best[2] = 3; c=4 → 1 + best[1] = 2 | **2** |\n| 6 | c=1 → 1 + best[5] = 3; c=3 → 1 + best[3] = **2**; c=4 → 1 + best[2] = 3 | **2** |\n\nAnswer: `best[6] = 2`, achieved by 3 + 3.\n\nNotice row 6: the greedy instinct picks `c = 4` because it is the biggest pack that fits, giving 3. The DP evaluates all three options and finds that going through `best[3] = 1` is better. The table has already computed that 3 is reachable in a single pack, so it can exploit that.\n\n**The overflow trap.** Constraints allow `credits[i]` up to 2³¹−1. If you initialise the table with `Integer.MAX_VALUE` and then compute `1 + best[t - c]` without first checking that `best[t - c]` is reachable, you overflow to a negative number and the `min` happily accepts it. Guard with an explicit reachability check, as the code below does.",
+  "solutions": {
+   "python": "from typing import List\n\ndef fewest_packs(credits: List[int], target: int) -> int:\n    INF = float('inf')\n    best = [INF] * (target + 1)\n    best[0] = 0                      # zero packs make zero\n\n    for t in range(1, target + 1):\n        for c in credits:\n            if c <= t and best[t - c] != INF:\n                best[t] = min(best[t], best[t - c] + 1)\n\n    return -1 if best[target] == INF else best[target]",
+   "java": "import java.util.*;\n\nclass Solution {\n    public int fewestPacks(int[] credits, int target) {\n        final int UNREACHABLE = Integer.MAX_VALUE;\n        int[] best = new int[target + 1];\n        Arrays.fill(best, UNREACHABLE);\n        best[0] = 0;                     // zero packs make zero\n\n        for (int t = 1; t <= target; t++) {\n            for (int c : credits) {\n                // c <= t guards the index; the reachability check prevents\n                // MAX_VALUE + 1 from overflowing to a negative number.\n                if (c <= t && best[t - c] != UNREACHABLE) {\n                    best[t] = Math.min(best[t], best[t - c] + 1);\n                }\n            }\n        }\n\n        return best[target] == UNREACHABLE ? -1 : best[target];\n    }\n}",
+   "cpp": "#include <vector>\n#include <algorithm>\n#include <climits>\n\nclass Solution {\npublic:\n    int fewestPacks(const std::vector<int>& credits, int target) {\n        const int UNREACHABLE = INT_MAX;\n        std::vector<int> best(target + 1, UNREACHABLE);\n        best[0] = 0;                     // zero packs make zero\n\n        for (int t = 1; t <= target; ++t) {\n            for (int c : credits) {\n                // c <= t guards the index; the reachability check prevents\n                // INT_MAX + 1 from overflowing to a negative number.\n                if (c <= t && best[t - c] != UNREACHABLE) {\n                    best[t] = std::min(best[t], best[t - c] + 1);\n                }\n            }\n        }\n\n        return best[target] == UNREACHABLE ? -1 : best[target];\n    }\n};"
+  },
+  "edgeCases": [
+   "target = 0 → 0, and the table must be sized target+1 so index 0 exists",
+   "No combination reaches the target → -1, not 0 and not a huge number",
+   "A single pack size larger than the target → -1",
+   "Pack sizes near 2^31-1 with an unguarded INF + 1 → silent integer overflow, the classic wrong answer here",
+   "credits containing a value equal to target → 1"
+  ],
+  "followUps": [
+   "Count the number of distinct combinations reaching the target instead of the minimum count — note the loop order flips to avoid counting permutations.",
+   "Return the actual multiset of packs used, by storing a parent pointer per amount.",
+   "target grows to 10^9 but len(credits) stays tiny — the DP is dead; what number-theoretic approach works?"
+  ],
+  "patternTakeaway": "Unbounded knapsack: best[t] = 1 + min(best[t - c]) built upward from 0 — and always check reachability before adding 1, or your sentinel overflows.",
+  "practice": {
+   "note": "Identical unbounded knapsack, including the -1 unreachable case.",
+   "links": [
+    {
+     "name": "LeetCode 322 · Coin Change",
+     "url": "https://leetcode.com/problems/coin-change/"
+    }
+   ]
+  }
+ },
+ {
+  "id": "cd-03",
+  "title": "Longest Shared Message Sequence",
+  "difficulty": "medium",
+  "topics": [
+   "Dynamic Programming",
+   "2D DP",
+   "Strings"
+  ],
+  "statement": "Two assistants produced answers `a` and `b` about your brand. To measure how much they overlap, find the length of the **longest common subsequence** of the two strings.\n\nA subsequence keeps the original relative order but may skip characters; it does not need to be contiguous.\n\n**Input:** two strings `a` and `b`.\n**Output:** a single integer — the length of the longest common subsequence.",
+  "examples": [
+   {
+    "input": "a = \"abcde\", b = \"ace\"",
+    "output": "3",
+    "explanation": "\"ace\" appears in \"abcde\" in order (skipping b and d), so the LCS has length 3."
+   },
+   {
+    "input": "a = \"abc\", b = \"def\"",
+    "output": "0",
+    "explanation": "No characters in common."
+   },
+   {
+    "input": "a = \"abc\", b = \"abc\"",
+    "output": "3",
+    "explanation": "Identical strings — the whole string is common."
+   }
+  ],
+  "constraints": [
+   "1 <= a.length, b.length <= 1000",
+   "a and b consist of lowercase English letters"
+  ],
+  "hints": [
+   "Compare the last characters of the two strings. If they match, that character can safely be part of the answer — why is it never wrong to include it? If they differ, at least one of them cannot be in the LCS.",
+   "Let dp[i][j] be the LCS length of the first i characters of a and the first j of b. When a[i-1] == b[j-1], dp[i][j] = dp[i-1][j-1] + 1. Otherwise dp[i][j] = max(dp[i-1][j], dp[i][j-1]).",
+   "Row i only ever reads row i-1, so if memory is tight you can keep two rows instead of the full table — but with lengths capped at 1000 the full 1001x1001 table is fine and much easier to debug."
+  ],
+  "bruteForce": {
+   "idea": "Enumerate every subsequence of a (2^n of them) and test each for being a subsequence of b. Correct and completely infeasible beyond about n = 20.",
+   "time": "O(2^n * m)",
+   "space": "O(n)"
+  },
+  "optimal": {
+   "idea": "Fill a 2-D table where dp[i][j] answers the prefix-versus-prefix subproblem. Every cell is computed once in O(1) from three neighbours, so the table fill is the total cost.",
+   "time": "O(n * m)",
+   "space": "O(n * m), reducible to O(min(n, m))"
+  },
+  "walkthrough": "Trace `a = \"abcde\"` (rows) against `b = \"ace\"` (columns). Row 0 and column 0 are all zeros — an empty prefix shares nothing.\n\n|  | ∅ | a | c | e |\n|---|---|---|---|---|\n| **∅** | 0 | 0 | 0 | 0 |\n| **a** | 0 | **1** | 1 | 1 |\n| **b** | 0 | 1 | 1 | 1 |\n| **c** | 0 | 1 | **2** | 2 |\n| **d** | 0 | 1 | 2 | 2 |\n| **e** | 0 | 1 | 2 | **3** |\n\nRead a few cells:\n\n- **(a, a)** — characters match, so take the diagonal `dp[0][0] = 0` and add 1 → **1**.\n- **(b, a)** — `'b' != 'a'`, so take `max(dp[above] = 1, dp[left] = 0) = 1`. The `b` contributed nothing but we keep the best result found so far.\n- **(c, c)** — match, so diagonal `dp[\"ab\",\"a\"] = 1` plus 1 → **2**.\n- **(e, e)** — match, diagonal `dp[\"abcd\",\"ac\"] = 2` plus 1 → **3**.\n\nBottom-right cell = **3**.\n\n**Why taking a match is always safe:** if `a[i-1] == b[j-1] == x`, there is always an optimal LCS that ends with that `x`. Any LCS not using this pair can be rewritten to use it without getting shorter. That is what licenses the unconditional `dp[i-1][j-1] + 1` — no `max` needed on the match branch.\n\n**Do not confuse this with longest common substring**, which requires contiguity and has a different recurrence: the mismatch case resets to 0 rather than inheriting the max.",
+  "solutions": {
+   "python": "def longest_common_subsequence(a: str, b: str) -> int:\n    n, m = len(a), len(b)\n    # dp[i][j] = LCS length of a[:i] and b[:j]; row/col 0 mean empty prefix\n    dp = [[0] * (m + 1) for _ in range(n + 1)]\n\n    for i in range(1, n + 1):\n        for j in range(1, m + 1):\n            if a[i - 1] == b[j - 1]:\n                # a match is always safe to take - no max needed here\n                dp[i][j] = dp[i - 1][j - 1] + 1\n            else:\n                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])\n\n    return dp[n][m]",
+   "java": "class Solution {\n    public int longestCommonSubsequence(String a, String b) {\n        int n = a.length(), m = b.length();\n        // dp[i][j] = LCS length of a[0..i) and b[0..j); row/col 0 = empty prefix\n        int[][] dp = new int[n + 1][m + 1];\n\n        for (int i = 1; i <= n; i++) {\n            for (int j = 1; j <= m; j++) {\n                if (a.charAt(i - 1) == b.charAt(j - 1)) {\n                    // a match is always safe to take - no max needed here\n                    dp[i][j] = dp[i - 1][j - 1] + 1;\n                } else {\n                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n                }\n            }\n        }\n\n        return dp[n][m];\n    }\n}",
+   "cpp": "#include <string>\n#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    int longestCommonSubsequence(const std::string& a, const std::string& b) {\n        int n = static_cast<int>(a.size());\n        int m = static_cast<int>(b.size());\n        // dp[i][j] = LCS length of a[0..i) and b[0..j); row/col 0 = empty prefix\n        std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));\n\n        for (int i = 1; i <= n; ++i) {\n            for (int j = 1; j <= m; ++j) {\n                if (a[i - 1] == b[j - 1]) {\n                    // a match is always safe to take - no max needed here\n                    dp[i][j] = dp[i - 1][j - 1] + 1;\n                } else {\n                    dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);\n                }\n            }\n        }\n\n        return dp[n][m];\n    }\n};"
+  },
+  "edgeCases": [
+   "No common characters → 0",
+   "Identical strings → full length",
+   "One string a subsequence of the other → the shorter length",
+   "Off-by-one on the string index: dp indices are 1-based but string indices are 0-based, hence a[i-1]",
+   "Confusing this with longest common SUBSTRING, where a mismatch resets the cell to 0"
+  ],
+  "followUps": [
+   "Reconstruct the actual subsequence by walking the table backwards from dp[n][m].",
+   "Reduce space to two rows — or to one row with a saved diagonal.",
+   "Compute the edit distance between the two strings; the recurrence is a close cousin with three operations instead of two."
+  ],
+  "patternTakeaway": "Two-sequence DP is a grid over prefix pairs: match → diagonal + 1, mismatch → max of the two neighbours; row i reads only row i-1, which is what lets you shrink the space.",
+  "practice": {
+   "note": "The exact problem.",
+   "links": [
+    {
+     "name": "LeetCode 1143 · Longest Common Subsequence",
+     "url": "https://leetcode.com/problems/longest-common-subsequence/"
+    }
+   ]
+  }
+ },
+ {
+  "id": "ce-01",
+  "title": "Rotate an Asset Grid In Place",
+  "difficulty": "medium",
+  "topics": [
+   "Matrix",
+   "Implementation",
+   "In-Place"
+  ],
+  "statement": "You are given an `n x n` matrix representing an image asset. Rotate it **90 degrees clockwise, in place** — you must modify the input matrix directly and may not allocate another n x n matrix.\n\n**Input:** an `n x n` integer matrix.\n**Output:** none; mutate the input.",
+  "examples": [
+   {
+    "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]",
+    "output": "[[7,4,1],[8,5,2],[9,6,3]]",
+    "explanation": "The first column bottom-to-top (7,4,1) becomes the first row."
+   },
+   {
+    "input": "matrix = [[1,2],[3,4]]",
+    "output": "[[3,1],[4,2]]",
+    "explanation": "A 2x2 rotation."
+   }
+  ],
+  "constraints": [
+   "n == matrix.length == matrix[i].length",
+   "1 <= n <= 20",
+   "-1000 <= matrix[i][j] <= 1000"
+  ],
+  "hints": [
+   "Write down where a single element ends up. Element at (r, c) lands at (c, n-1-r). Try to build that mapping out of two simpler operations you already know how to do in place.",
+   "Transpose (reflect across the main diagonal) sends (r, c) to (c, r). What single reflection do you still need afterwards to turn (c, r) into (c, n-1-r)?",
+   "Transpose, then reverse each row. The transpose loop must start its inner index at `c = r`, not `c = 0` — otherwise you swap every pair twice and end up back where you started."
+  ],
+  "bruteForce": {
+   "idea": "Allocate a fresh n x n matrix, write result[c][n-1-r] = matrix[r][c], then copy it back. Trivially correct but violates the in-place constraint and uses O(n^2) extra memory.",
+   "time": "O(n^2)",
+   "space": "O(n^2)"
+  },
+  "optimal": {
+   "idea": "Two in-place passes: transpose across the main diagonal, then reverse each row. Both are simple swap loops with no extra allocation.",
+   "time": "O(n^2)",
+   "space": "O(1)"
+  },
+  "walkthrough": "Take the 3x3:\n\n```\n1 2 3\n4 5 6\n7 8 9\n```\n\n**Pass 1 — transpose.** Swap `matrix[r][c]` with `matrix[c][r]` for every `c > r`, i.e. only the upper triangle.\n\n| swap | result so far |\n|---|---|\n| (0,1) ↔ (1,0) | 1 4 3 / 2 5 6 / 7 8 9 |\n| (0,2) ↔ (2,0) | 1 4 7 / 2 5 6 / 3 8 9 |\n| (1,2) ↔ (2,1) | 1 4 7 / 2 5 8 / 3 6 9 |\n\n```\n1 4 7\n2 5 8\n3 6 9\n```\n\n**Pass 2 — reverse each row.**\n\n```\n7 4 1\n8 5 2\n9 6 3\n```\n\nWhich is the required output.\n\n**Why the inner loop starts at `c = r`.** If it started at `c = 0`, the pair (0,1)↔(1,0) would be swapped once when `r=0, c=1` and swapped *back* when `r=1, c=0`. Every swap would be undone and the matrix would come out unchanged — a bug that produces a perfectly plausible-looking 'no rotation happened' result rather than a crash.\n\n**For 90° anticlockwise** it is the same trick with the second step changed: transpose, then reverse each *column* (equivalently, reverse the order of the rows).",
+  "solutions": {
+   "python": "from typing import List\n\ndef rotate(matrix: List[List[int]]) -> None:\n    n = len(matrix)\n\n    # Pass 1: transpose across the main diagonal.\n    # Inner loop starts at c = r so each pair is swapped exactly once.\n    for r in range(n):\n        for c in range(r + 1, n):\n            matrix[r][c], matrix[c][r] = matrix[c][r], matrix[r][c]\n\n    # Pass 2: reverse each row\n    for row in matrix:\n        row.reverse()",
+   "java": "class Solution {\n    public void rotate(int[][] matrix) {\n        int n = matrix.length;\n\n        // Pass 1: transpose across the main diagonal.\n        // Inner loop starts at c = r + 1 so each pair is swapped exactly once.\n        for (int r = 0; r < n; r++) {\n            for (int c = r + 1; c < n; c++) {\n                int tmp = matrix[r][c];\n                matrix[r][c] = matrix[c][r];\n                matrix[c][r] = tmp;\n            }\n        }\n\n        // Pass 2: reverse each row\n        for (int r = 0; r < n; r++) {\n            int left = 0, right = n - 1;\n            while (left < right) {\n                int tmp = matrix[r][left];\n                matrix[r][left] = matrix[r][right];\n                matrix[r][right] = tmp;\n                left++;\n                right--;\n            }\n        }\n    }\n}",
+   "cpp": "#include <vector>\n#include <algorithm>\n\nclass Solution {\npublic:\n    void rotate(std::vector<std::vector<int>>& matrix) {\n        int n = static_cast<int>(matrix.size());\n\n        // Pass 1: transpose across the main diagonal.\n        // Inner loop starts at c = r + 1 so each pair is swapped exactly once.\n        for (int r = 0; r < n; ++r) {\n            for (int c = r + 1; c < n; ++c) {\n                std::swap(matrix[r][c], matrix[c][r]);\n            }\n        }\n\n        // Pass 2: reverse each row\n        for (int r = 0; r < n; ++r) {\n            std::reverse(matrix[r].begin(), matrix[r].end());\n        }\n    }\n};"
+  },
+  "edgeCases": [
+   "n = 1 → unchanged",
+   "n = 2 → the smallest case where a double-swap bug is visible",
+   "Inner transpose loop starting at c = 0 → every swap undone, matrix unchanged",
+   "Returning a new matrix instead of mutating — fails the in-place requirement even though the values are right"
+  ],
+  "followUps": [
+   "Rotate 90 degrees anticlockwise instead — transpose then reverse rows top-to-bottom.",
+   "Rotate a rectangular m x n matrix; why can that not be done in place?",
+   "Do it with the four-way cyclic swap of layers, touching each element exactly once."
+  ],
+  "patternTakeaway": "In-place matrix rotation = transpose then reverse rows; the transpose inner loop must start at c = r + 1 or every swap is undone.",
+  "practice": {
+   "note": "Identical in-place transpose-then-reverse.",
+   "links": [
+    {
+     "name": "LeetCode 48 · Rotate Image",
+     "url": "https://leetcode.com/problems/rotate-image/"
+    }
+   ]
+  }
+ },
+ {
+  "id": "ce-02",
+  "title": "The Unpaired Session ID",
+  "difficulty": "easy",
+  "topics": [
+   "Bit Manipulation",
+   "Arrays",
+   "XOR"
+  ],
+  "statement": "Every session in a log was recorded exactly twice, except for one session that was recorded only once.\n\nGiven the array `ids`, return the id that appears only once. Solve it in linear time using constant extra space.\n\n**Input:** integer array `ids`.\n**Output:** a single integer.",
+  "examples": [
+   {
+    "input": "ids = [4,1,2,1,2]",
+    "output": "4",
+    "explanation": "1 and 2 each appear twice; 4 appears once."
+   },
+   {
+    "input": "ids = [7]",
+    "output": "7",
+    "explanation": "A single element is by definition the unpaired one."
+   }
+  ],
+  "constraints": [
+   "1 <= ids.length <= 3 * 10^4",
+   "ids.length is odd",
+   "-3 * 10^4 <= ids[i] <= 3 * 10^4",
+   "every element appears exactly twice except one"
+  ],
+  "hints": [
+   "A hash set solves this immediately but costs O(n) space, and the problem explicitly asks for O(1). So you need an operation that makes duplicates cancel each other out.",
+   "XOR has three properties that matter here: x ^ x == 0, x ^ 0 == x, and it is commutative and associative — so the order you apply it in does not matter at all.",
+   "XOR every element together. Each duplicated pair collapses to 0 regardless of where the two copies sit in the array, and 0 ^ unique == unique."
+  ],
+  "bruteForce": {
+   "idea": "Count occurrences in a hash map, then scan for the entry with count 1. Linear time but O(n) space, which the constraints rule out.",
+   "time": "O(n)",
+   "space": "O(n)"
+  },
+  "optimal": {
+   "idea": "Fold the whole array with XOR into a single accumulator. Pairs annihilate; the survivor is the answer.",
+   "time": "O(n)",
+   "space": "O(1)"
+  },
+  "walkthrough": "Trace `ids = [4, 1, 2, 1, 2]` with `result = 0`. Values shown in binary for clarity.\n\n| step | element | operation | result (binary) | result |\n|---|---|---|---|---|\n| start | — | — | 000 | 0 |\n| 1 | 4 (100) | 0 ^ 4 | 100 | 4 |\n| 2 | 1 (001) | 4 ^ 1 | 101 | 5 |\n| 3 | 2 (010) | 5 ^ 2 | 111 | 7 |\n| 4 | 1 (001) | 7 ^ 1 | 110 | 6 |\n| 5 | 2 (010) | 6 ^ 2 | 100 | 4 |\n\nResult: **4**.\n\nWatch what happened to the 1s: the low bit was set at step 2 and cleared again at step 4. Same for the 2s at steps 3 and 5. Because XOR is commutative and associative, the expression is equivalent to `4 ^ (1 ^ 1) ^ (2 ^ 2)` = `4 ^ 0 ^ 0` = `4` — and that regrouping is legal *no matter how the duplicates are scattered* through the array. The array does not need to be sorted, and the pairs do not need to be adjacent.\n\nNegative numbers are fine too: XOR operates on the two's-complement bit pattern, and a value XORed with itself is still zero whatever those bits are.",
+  "solutions": {
+   "python": "from typing import List\n\ndef find_unpaired(ids: List[int]) -> int:\n    result = 0\n    for value in ids:\n        # x ^ x == 0, so every duplicated pair cancels out\n        result ^= value\n    return result",
+   "java": "class Solution {\n    public int findUnpaired(int[] ids) {\n        int result = 0;\n        for (int value : ids) {\n            // x ^ x == 0, so every duplicated pair cancels out\n            result ^= value;\n        }\n        return result;\n    }\n}",
+   "cpp": "#include <vector>\n\nclass Solution {\npublic:\n    int findUnpaired(const std::vector<int>& ids) {\n        int result = 0;\n        for (int value : ids) {\n            // x ^ x == 0, so every duplicated pair cancels out\n            result ^= value;\n        }\n        return result;\n    }\n};"
+  },
+  "edgeCases": [
+   "Single element → returns it",
+   "Negative values → fine, XOR works on the bit pattern",
+   "The unpaired element is 0 → returns 0 correctly, but a 'return the first non-cancelled value' hack would not",
+   "Duplicates far apart in the array → order is irrelevant to XOR"
+  ],
+  "followUps": [
+   "Two elements appear once instead of one — split the array by any set bit of the total XOR and solve each half.",
+   "Every element appears three times except one; XOR no longer cancels, so count bits modulo 3 instead.",
+   "Find the missing number in 0..n — XOR the array against 0..n."
+  ],
+  "patternTakeaway": "XOR is the constant-space cancellation tool: x ^ x = 0 and x ^ 0 = x, and because it commutes the duplicates can be anywhere in the array.",
+  "practice": {
+   "note": "The exact XOR problem.",
+   "links": [
+    {
+     "name": "LeetCode 136 · Single Number",
+     "url": "https://leetcode.com/problems/single-number/"
+    }
+   ]
+  }
+ },
+ {
+  "id": "ce-03",
+  "title": "Share of Voice Across AI Answers",
+  "difficulty": "medium",
+  "topics": [
+   "Hash Map",
+   "Sorting",
+   "Simulation",
+   "String Parsing"
+  ],
+  "statement": "You are measuring how visible brands are inside AI assistant answers.\n\nYou are given `answers`, a list of strings. Each string is one assistant answer, formatted as space-separated brand mentions. A mention has the form `brand:position`, where `position` is a 1-based integer giving where the brand was cited in that answer (position 1 is the first citation).\n\nA mention scores `1.0 / position` points — being cited first is worth much more than being cited fifth.\n\nReturn the brands ranked by **share of voice**: a brand's share is its total score divided by the total score of all brands. Rank by share descending; break ties by brand name ascending. Round each share to 4 decimal places.\n\n**Input:** list of strings `answers`.\n**Output:** list of `[brand, share]` pairs.",
+  "examples": [
+   {
+    "input": "answers = [\"acme:1 globex:2\", \"globex:1 acme:2\"]",
+    "output": "[[\"acme\",0.5],[\"globex\",0.5]]",
+    "explanation": "acme scores 1/1 + 1/2 = 1.5; globex scores 1/2 + 1/1 = 1.5. Total 3.0, so each holds 0.5. The tie is broken alphabetically."
+   },
+   {
+    "input": "answers = [\"acme:1\", \"acme:1\", \"globex:2\"]",
+    "output": "[[\"acme\",0.8],[\"globex\",0.2]]",
+    "explanation": "acme scores 1 + 1 = 2.0; globex scores 0.5. Total 2.5 → acme 2.0/2.5 = 0.8, globex 0.5/2.5 = 0.2."
+   }
+  ],
+  "constraints": [
+   "1 <= answers.length <= 10^4",
+   "each answer contains between 1 and 20 mentions",
+   "brand names are lowercase letters, length <= 20",
+   "1 <= position <= 20"
+  ],
+  "hints": [
+   "There are three separate steps hiding in here: parse, aggregate, rank. Do them one at a time rather than trying to fuse them — fused parsing-and-ranking code is where the bugs live.",
+   "Parsing: split each answer on spaces, then split each token on ':' to get the brand and the position. Accumulate into a hash map from brand to running score.",
+   "Compute the grand total in the same pass you build the map, then divide. Do the rounding only at the very end — rounding each mention as you go accumulates error and can flip a tie."
+  ],
+  "bruteForce": {
+   "idea": "Collect every mention into a flat list, then for each distinct brand rescan the whole list summing its score. Correct but quadratic in the number of mentions.",
+   "time": "O(M * B) for M mentions and B brands",
+   "space": "O(M)"
+  },
+  "optimal": {
+   "idea": "One pass to parse and accumulate scores into a hash map while tracking the grand total, then one sort of the distinct brands. Sorting dominates.",
+   "time": "O(M + B log B)",
+   "space": "O(B)"
+  },
+  "walkthrough": "Take `answers = [\"acme:1\", \"acme:1\", \"globex:2\"]`.\n\n**Step 1 — parse and accumulate.**\n\n| answer | token | brand | position | score added | map after | total |\n|---|---|---|---|---|---|---|\n| \"acme:1\" | acme:1 | acme | 1 | 1/1 = 1.0 | {acme: 1.0} | 1.0 |\n| \"acme:1\" | acme:1 | acme | 1 | 1/1 = 1.0 | {acme: 2.0} | 2.0 |\n| \"globex:2\" | globex:2 | globex | 2 | 1/2 = 0.5 | {acme: 2.0, globex: 0.5} | 2.5 |\n\n**Step 2 — divide by the grand total (2.5).**\n\n| brand | score | share |\n|---|---|---|\n| acme | 2.0 | 2.0 / 2.5 = 0.8 |\n| globex | 0.5 | 0.5 / 2.5 = 0.2 |\n\n**Step 3 — sort by share descending, then name ascending** → `[[\"acme\", 0.8], [\"globex\", 0.2]]`.\n\n**The floating-point trap.** Shares are doubles, and comparing them with `==` for the tie-break is unreliable — `1.5/3.0` and `1.5/3.0` computed by different routes may differ in the last bit. In the tie-break, compare with a small epsilon (as the code below does) rather than exact equality, or compare the integer-scaled rounded values. Example 1 is exactly this case: two brands that must tie and then be ordered alphabetically.\n\n**Why 1/position and not a flat count?** Because it encodes the actual finding this whole theme rests on — in a generative answer, the first cited source captures far more attention than the fourth. A flat mention count would rate 'mentioned last in every answer' equal to 'always cited first', which is exactly the wrong signal for a brand visibility dashboard.",
+  "solutions": {
+   "python": "from typing import List\n\ndef share_of_voice(answers: List[str]) -> List[list]:\n    scores = {}\n    total = 0.0\n\n    # Step 1: parse and accumulate in a single pass\n    for answer in answers:\n        for token in answer.split():\n            brand, _, position_text = token.partition(':')\n            position = int(position_text)\n            points = 1.0 / position          # first citation is worth the most\n            scores[brand] = scores.get(brand, 0.0) + points\n            total += points\n\n    # Step 2: convert to shares (guard against an empty input)\n    if total == 0.0:\n        return []\n    ranked = [[brand, score / total] for brand, score in scores.items()]\n\n    # Step 3: share descending, then name ascending.\n    # Round first so the sort and the output agree on the tie-break.\n    ranked = [[brand, round(share, 4)] for brand, share in ranked]\n    ranked.sort(key=lambda pair: (-pair[1], pair[0]))\n    return ranked",
+   "java": "import java.util.*;\n\nclass Solution {\n    public List<Object[]> shareOfVoice(String[] answers) {\n        Map<String, Double> scores = new HashMap<>();\n        double total = 0.0;\n\n        // Step 1: parse and accumulate in a single pass\n        for (String answer : answers) {\n            for (String token : answer.split(\" \")) {\n                if (token.isEmpty()) continue;\n                int colon = token.lastIndexOf(':');\n                String brand = token.substring(0, colon);\n                int position = Integer.parseInt(token.substring(colon + 1));\n                double points = 1.0 / position;    // first citation is worth the most\n                scores.put(brand, scores.getOrDefault(brand, 0.0) + points);\n                total += points;\n            }\n        }\n\n        List<Object[]> ranked = new ArrayList<>();\n        if (total == 0.0) return ranked;\n\n        // Step 2: convert to shares, rounded to 4 decimal places\n        for (Map.Entry<String, Double> e : scores.entrySet()) {\n            double share = Math.round(e.getValue() / total * 10000.0) / 10000.0;\n            ranked.add(new Object[]{e.getKey(), share});\n        }\n\n        // Step 3: share descending, then name ascending.\n        // Compare doubles with an epsilon, never with ==.\n        ranked.sort((a, b) -> {\n            double sa = (Double) a[1], sb = (Double) b[1];\n            if (Math.abs(sa - sb) > 1e-9) return Double.compare(sb, sa);\n            return ((String) a[0]).compareTo((String) b[0]);\n        });\n\n        return ranked;\n    }\n}",
+   "cpp": "#include <string>\n#include <vector>\n#include <unordered_map>\n#include <algorithm>\n#include <sstream>\n#include <cmath>\n\nclass Solution {\npublic:\n    std::vector<std::pair<std::string, double>> shareOfVoice(const std::vector<std::string>& answers) {\n        std::unordered_map<std::string, double> scores;\n        double total = 0.0;\n\n        // Step 1: parse and accumulate in a single pass\n        for (const auto& answer : answers) {\n            std::istringstream stream(answer);\n            std::string token;\n            while (stream >> token) {\n                size_t colon = token.rfind(':');\n                if (colon == std::string::npos) continue;\n                std::string brand = token.substr(0, colon);\n                int position = std::stoi(token.substr(colon + 1));\n                double points = 1.0 / position;   // first citation is worth the most\n                scores[brand] += points;\n                total += points;\n            }\n        }\n\n        std::vector<std::pair<std::string, double>> ranked;\n        if (total == 0.0) return ranked;\n\n        // Step 2: convert to shares, rounded to 4 decimal places\n        for (const auto& kv : scores) {\n            double share = std::round(kv.second / total * 10000.0) / 10000.0;\n            ranked.push_back({kv.first, share});\n        }\n\n        // Step 3: share descending, then name ascending.\n        // Compare doubles with an epsilon, never with ==.\n        std::sort(ranked.begin(), ranked.end(),\n                  [](const std::pair<std::string, double>& a,\n                     const std::pair<std::string, double>& b) {\n                      if (std::fabs(a.second - b.second) > 1e-9) return a.second > b.second;\n                      return a.first < b.first;\n                  });\n\n        return ranked;\n    }\n};"
+  },
+  "edgeCases": [
+   "A single brand in a single answer → share 1.0",
+   "Exact ties requiring the alphabetical tie-break — comparing doubles with == breaks here",
+   "The same brand mentioned twice in one answer at different positions — both mentions count",
+   "Brand names containing no colon, or an empty token from a double space",
+   "Rounding per-mention instead of once at the end, which accumulates error and can flip a tie"
+  ],
+  "followUps": [
+   "Weight each answer by how often that prompt is actually asked, so share of voice reflects real traffic.",
+   "Report the change in share versus a previous run and flag statistically significant moves.",
+   "Positions can now be tied (two brands cited jointly first) — how does the scoring change?"
+  ],
+  "patternTakeaway": "Parse, aggregate, then rank — as three separate passes; and never break a tie on floating-point equality, always use an epsilon or a scaled integer.",
+  "practice": {
+   "note": "Closest judge equivalent — same count, rank and tie-break shape. Ours adds the 1/position weighting, which no LeetCode problem covers.",
+   "links": [
+    {
+     "name": "LeetCode 692 · Top K Frequent Words",
+     "url": "https://leetcode.com/problems/top-k-frequent-words/"
+    }
+   ]
+  }
+ }
 ]

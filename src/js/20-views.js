@@ -475,6 +475,32 @@ ROUTES.coding = function (params) {
   return wrap;
 };
 
+// Our statements are re-themed, but the algorithm is the same as a real judge
+// problem — so link it and let people actually run and submit code.
+function practiceBox(practice) {
+  const box = el('div', { class: 'card card-pad', style: 'margin-top:16px;border-color:var(--accent-line)' });
+  const head = el('div', { style: 'display:flex;align-items:center;gap:9px;margin-bottom:8px' });
+  head.appendChild(icon('bolt'));
+  head.appendChild(el('h3', { text: 'Run this on a judge' }));
+  box.appendChild(head);
+  box.appendChild(el('p', {
+    class: 'lede', style: 'font-size:.86rem;margin-bottom:12px',
+    text: practice.note || 'The same algorithm, on a judge that will actually compile and test your code.',
+  }));
+  const row = el('div', { class: 'pill-row' });
+  practice.links.forEach(function (l) {
+    const a = el('a', {
+      class: 'btn btn-sm', href: l.url, target: '_blank', rel: 'noopener noreferrer',
+      style: 'text-decoration:none',
+    });
+    a.appendChild(document.createTextNode(l.name));
+    a.appendChild(el('span', { style: 'opacity:.6', text: '↗' }));
+    row.appendChild(a);
+  });
+  box.appendChild(row);
+  return box;
+}
+
 function problemDetail(p) {
   const rec = codeRec(p.id);
   const box = el('div');
@@ -518,6 +544,10 @@ function problemDetail(p) {
     card.appendChild(mdBlock(p.constraints.map(function (c) { return '- ' + c; }).join('\n')));
   }
   box.appendChild(card);
+
+  if (p.practice && p.practice.links && p.practice.links.length) {
+    box.appendChild(practiceBox(p.practice));
+  }
 
   // Progressive hints
   const hintWrap = el('div', { style: 'margin-top:16px' });

@@ -70,7 +70,16 @@
    "The array is no longer sorted. Can you still achieve O(n) time, and what do you have to give up to get it?",
    "Extend to three indices summing to budget in O(n^2) time and O(1) extra space."
   ],
-  "patternTakeaway": "On a sorted array, opposite-end two pointers turn an O(n^2) pair search into O(n), because each comparison provably eliminates an entire row or column of the pair matrix."
+  "patternTakeaway": "On a sorted array, opposite-end two pointers turn an O(n^2) pair search into O(n), because each comparison provably eliminates an entire row or column of the pair matrix.",
+  "practice": {
+   "note": "Same two-pointer pair-sum scan on a sorted array.",
+   "links": [
+    {
+     "name": "LeetCode 167 · Two Sum II — Input Array Is Sorted",
+     "url": "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/"
+    }
+   ]
+  }
  },
  {
   "id": "ca-02",
@@ -149,7 +158,16 @@
    "What if the alphabet also contained digits? Describe the ambiguity that creates and design an escaping scheme.",
    "Change the rule so counts are emitted only for runs of length >= 3. Which examples flip, and does the strictly-shorter check still matter?"
   ],
-  "patternTakeaway": "Group-by-run scanning — advance a second index while it matches the run's first element, then jump the outer index to it — collapses adjacent-duplicate problems into a single linear pass."
+  "patternTakeaway": "Group-by-run scanning — advance a second index while it matches the run's first element, then jump the outer index to it — collapses adjacent-duplicate problems into a single linear pass.",
+  "practice": {
+   "note": "Same run-length encoding, done in place on the judge version.",
+   "links": [
+    {
+     "name": "LeetCode 443 · String Compression",
+     "url": "https://leetcode.com/problems/string-compression/"
+    }
+   ]
+  }
  },
  {
   "id": "ca-03",
@@ -228,7 +246,16 @@
    "Longest window in which at most one value is allowed to appear twice.",
    "Streaming version: the array arrives one element at a time and you may store only O(K) state. What can you still guarantee?"
   ],
-  "patternTakeaway": "A variable-size sliding window plus a last-seen index map keeps the validity invariant repairable in O(1) per step, so a single pass with only-forward pointer motion solves it in linear time."
+  "patternTakeaway": "A variable-size sliding window plus a last-seen index map keeps the validity invariant repairable in O(1) per step, so a single pass with only-forward pointer motion solves it in linear time.",
+  "practice": {
+   "note": "Identical sliding window with a last-seen map.",
+   "links": [
+    {
+     "name": "LeetCode 3 · Longest Substring Without Repeating Characters",
+     "url": "https://leetcode.com/problems/longest-substring-without-repeating-characters/"
+    }
+   ]
+  }
  },
  {
   "id": "ca-04",
@@ -304,7 +331,16 @@
    "If every delta[i] were strictly positive, a sliding window would work in O(n) time and O(1) space. Explain precisely which property makes that valid and why it fails here.",
    "Count subarrays with sum strictly less than target — why does the hash map stop working, and what data structure replaces it?"
   ],
-  "patternTakeaway": "Convert 'subarray sum equals X' into 'a pair of prefix sums differing by X', then answer it in one pass with a hash map of prefix-sum frequencies."
+  "patternTakeaway": "Convert 'subarray sum equals X' into 'a pair of prefix sums differing by X', then answer it in one pass with a hash map of prefix-sum frequencies.",
+  "practice": {
+   "note": "Same prefix-sum + hash-map counting.",
+   "links": [
+    {
+     "name": "LeetCode 560 · Subarray Sum Equals K",
+     "url": "https://leetcode.com/problems/subarray-sum-equals-k/"
+    }
+   ]
+  }
  },
  {
   "id": "ca-05",
@@ -381,7 +417,16 @@
    "Find the minimum number of intervals to remove so that none of the remainder overlap — which endpoint do you sort by now, and why does that change?",
    "Handle half-open intervals [start, end) instead. Which single comparison changes?"
   ],
-  "patternTakeaway": "Sorting by one endpoint converts a global 'which pairs overlap' question into a local one: after sorting, each item need only be compared against the single group currently open."
+  "patternTakeaway": "Sorting by one endpoint converts a global 'which pairs overlap' question into a local one: after sorting, each item need only be compared against the single group currently open.",
+  "practice": {
+   "note": "Same sort-then-sweep merge.",
+   "links": [
+    {
+     "name": "LeetCode 56 · Merge Intervals",
+     "url": "https://leetcode.com/problems/merge-intervals/"
+    }
+   ]
+  }
  },
  {
   "id": "ca-06",
@@ -456,6 +501,15 @@
    "Return the actual run boundaries and the index of the deleted element, not just the sum.",
    "Solve the circular version, where the run may wrap around from the end of the array to the beginning."
   ],
-  "patternTakeaway": "When a linear scan is allowed one 'exception', duplicate the Kadane state — one track that has not used the exception and one that has — and let each step decide whether to spend it."
+  "patternTakeaway": "When a linear scan is allowed one 'exception', duplicate the Kadane state — one track that has not used the exception and one that has — and let each step decide whether to spend it.",
+  "practice": {
+   "note": "Same two-state Kadane — best ending here with and without a skip.",
+   "links": [
+    {
+     "name": "LeetCode 1186 · Maximum Subarray Sum with One Deletion",
+     "url": "https://leetcode.com/problems/maximum-subarray-sum-with-one-deletion/"
+    }
+   ]
+  }
  }
 ]

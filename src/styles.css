@@ -726,7 +726,10 @@ pre.code code { background: none; border: 0; padding: 0; font-size: inherit; }
 
 /* === Exam mode ============================================================ */
 
-body.exam-mode .rail { display: none; }
+/* Exam lockdown: the rail AND the topbar go, so the app's own
+   "Start Round 1 mock" button cannot sit above a running assessment. */
+body.exam-mode .rail,
+body.exam-mode .topbar { display: none; }
 
 .exam-bar {
   position: sticky; top: 0; z-index: 50;
