@@ -4026,6 +4026,7 @@ function mediaAnalyseFrame(video) {
     deviation: MEDIA.baselineFrame ? deviation / n : 0,
     frame: luma,
     box: box,
+    flatFraction: MEDIA.lastFlatFraction,
   };
 }
 
@@ -4041,13 +4042,24 @@ function mediaSubjectBox(luma) {
   const gy = new Float32Array(VISION_H);
   let totalEdge = 0;
 
+  // Flatness inside the guide, measured independently of any baseline.
+  // A face is never uniform — eyes, nostrils, lips and the hairline all
+  // generate local gradient. The back of a phone, a book or a hand is.
+  let flat = 0, flatN = 0;
+
   for (let y = 1; y < VISION_H - 1; y++) {
     for (let x = 1; x < VISION_W - 1; x++) {
       const i = y * VISION_W + x;
       const g = Math.abs(luma[i] - luma[i + 1]) + Math.abs(luma[i] - luma[i + VISION_W]);
       if (g > 14) { gx[x] += g; gy[y] += g; totalEdge += g; }
+      if (x >= REG.x0 && x < REG.x1 && y >= REG.y0 && y < REG.y1) {
+        flatN++;
+        if (g < 8) flat++;
+      }
     }
   }
+  MEDIA.lastFlatFraction = flatN ? flat / flatN : 0;
+
   if (totalEdge < 2500) return null;   // essentially nothing in frame
 
   const bounds = function (hist, len) {
@@ -4105,9 +4117,16 @@ function mediaVision(video) {
   }
   mediaDrawBox(f.box);
 
+  // Baseline-free check: a large flat, low-texture area filling the guide is
+  // an object, not a face. This still fires when the baseline itself was
+  // captured with something already in front of the camera — which is exactly
+  // how a baseline-only detector reports nothing while a phone is held up.
+  const flatBlocked = f.flatFraction > 0.82 && f.texture < 24;
+  MEDIA.flatBlocked = flatBlocked;
+
   // Sustained deviation from the calibrated view. This is the signal that
   // survives a phone being held perfectly still.
-  let occluded = false;
+  let occluded = flatBlocked;
   if (MEDIA.baselineFrame && f.deviation > DEVIATION_DIFF) {
     if (!MEDIA.deviateSince) MEDIA.deviateSince = now;
     else if (now - MEDIA.deviateSince > DEVIATION_MS) occluded = true;
@@ -4130,7 +4149,9 @@ function mediaVision(video) {
 
   const warn = $('#pmWarn');
   if (warn) {
-    const msg = MEDIA.status.occlusion
+    const msg = MEDIA.flatBlocked
+      ? 'Something flat is covering your face — a phone, a hand or a book. This is what their hand-near-face rule fires on.'
+      : MEDIA.status.occlusion
       ? (MEDIA.baselineFrame
           ? 'Your face is blocked or you have moved — this is the pattern behind their hand-near-face rule'
           : 'Movement in front of your face. Press Calibrate for reliable detection.')
@@ -4173,6 +4194,26 @@ function mediaDrawBox(box) {
     : MEDIA.status.tooFar ? 'too far'
     : MEDIA.status.offCentre ? 'off centre'
     : 'subject';
+}
+
+// Manual calibration counts down first, so the baseline cannot be captured
+// while something is still in front of your face — which silently defeats
+// every baseline-relative check afterwards.
+function mediaCalibrateCountdown() {
+  let n = 3;
+  const warn = $('#pmWarn');
+  const tick = function () {
+    const w = $('#pmWarn');
+    if (w) {
+      w.style.display = 'block';
+      w.textContent = 'Clear your face and look at the camera — capturing in ' + n + '…';
+    }
+    if (n === 0) { mediaCalibrate(false); return; }
+    n--;
+    setTimeout(tick, 800);
+  };
+  if (warn) warn.style.display = 'block';
+  tick();
 }
 
 function mediaCalibrate(auto) {
@@ -4414,8 +4455,8 @@ function mediaRender() {
   btns.appendChild(el('button', {
     class: 'btn btn-sm' + (MEDIA.baselineFrame ? '' : ' btn-primary'), style: 'flex:1',
     text: MEDIA.baselineFrame ? 'Recalibrate' : 'Calibrate',
-    title: 'Sit as you will during the test, then press this',
-    onclick: function () { mediaCalibrate(false); },
+    title: 'Counts down, then captures a baseline of your clear face',
+    onclick: mediaCalibrateCountdown,
   }));
   btns.appendChild(el('button', { class: 'btn btn-sm', style: 'flex:1', text: 'Turn off', onclick: function () { mediaStop(); } }));
   body.appendChild(btns);
