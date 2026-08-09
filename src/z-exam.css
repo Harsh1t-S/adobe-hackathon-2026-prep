@@ -280,9 +280,23 @@
   transition: left .12s linear;
 }
 
-.pm-row { display: flex; align-items: center; gap: 6px; }
 .pm-state { font-size: .72rem; font-weight: 650; color: var(--ok); }
 .pm-state.loud { color: var(--bad); }
+
+.pm-warn {
+  font-size: .7rem; line-height: 1.4; font-weight: 600;
+  color: var(--bad); background: var(--bad-soft);
+  border: 1px solid var(--bad-line); border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+.pm-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.pm-stat {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm); padding: 4px 7px;
+}
+.pm-stat-label { font-size: .66rem; color: var(--text-dim); flex: 1; }
 .pm-count {
   font-family: var(--font-mono); font-size: .75rem; font-weight: 700;
   font-variant-numeric: tabular-nums;
