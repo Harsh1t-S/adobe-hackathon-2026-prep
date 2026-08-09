@@ -1,49 +1,54 @@
 /* ==========================================================================
-   Proctor preview — local camera view, microphone level meter, and a set of
-   frame heuristics that approximate what a real proctoring system reacts to.
+   Proctor preview — local camera view, microphone meter, and frame heuristics
+   that approximate what a real proctoring system reacts to.
 
    Everything stays in the browser: the stream feeds a <video>, an
    AnalyserNode and an offscreen <canvas>. Nothing is recorded, nothing is
    uploaded, and there is no network call anywhere in this file.
 
-   HONEST SCOPE — read this before trusting the warnings.
-   This is not machine learning and it does not identify objects. It cannot
-   tell a phone from a mug. What it measures is:
-     - overall brightness              -> "too dark to verify your face"
-     - texture inside the frame guide  -> "nothing there, you may be out of shot"
-     - sudden movement in that region  -> "something moved in front of your face"
-   That last one is the useful proxy: the guidelines warn that resting a hand
-   near your face can trigger a "mobile phone detected" violation, and the
-   physical event behind it is exactly an occlusion of the face region.
-   Deliberately no skin-tone detection — the usual RGB rules are markedly less
-   reliable on darker skin, and luma texture works for everyone.
+   HONEST SCOPE. This is not machine learning and it does not identify
+   objects — it cannot tell a phone from a mug. What it measures is:
+     - mean brightness                     -> too dark to verify your face
+     - luma texture inside the frame guide -> nothing there, you are out of shot
+     - deviation from your calibrated baseline -> the view changed and stayed
+       changed, i.e. something is parked in front of your face
+     - short-term motion                   -> something just moved there
+   Deviation is the one that matters: a phone held still produces no motion at
+   all, so a motion-only detector goes quiet exactly when the problem persists.
+   Deliberately no skin-tone segmentation — the usual RGB rules are markedly
+   less reliable on darker skin, and luma texture works regardless.
    ========================================================================== */
 
 const MEDIA = {
   stream: null,
   audioCtx: null, analyser: null, data: null,
-  raf: null, panel: null, collapsed: false,
+  raf: null, panel: null, collapsed: false, notesOpen: false,
   noiseEvents: 0, loudSince: 0, peak: 0,
   error: '',
-  // vision
   canvas: null, cctx: null, prev: null,
-  baseline: null,          // { luma, texture } captured by Calibrate
+  baseline: null,          // { luma, texture }
+  baselineFrame: null,     // Uint8Array luma of the calibrated frame
   lastVisionAt: 0,
   darkEvents: 0, absentEvents: 0, occlusionEvents: 0,
   cooldown: { dark: 0, absent: 0, occlusion: 0 },
   status: { dark: false, absent: false, occlusion: false },
-  occludeSince: 0,
+  deviateSince: 0, motionSince: 0,
+  pos: null,               // { left, top } once dragged
+  drag: null,
 };
 
 const MEDIA_NOISE_THRESHOLD = 0.11;
 const MEDIA_LOUD_MS = 400;
 const VISION_W = 96, VISION_H = 72;
-const VISION_INTERVAL_MS = 160;          // ~6 fps is plenty and costs little
+const VISION_INTERVAL_MS = 140;
 const DARK_LUMA = 46;
 const TEXTURE_ABSENT = 11;
-const OCCLUSION_DIFF = 17;
-const OCCLUSION_MS = 280;
+const MOTION_DIFF = 17;
+const MOTION_MS = 260;
+const DEVIATION_DIFF = 20;     // vs the calibrated baseline frame
+const DEVIATION_MS = 500;      // must persist — this is what catches a still phone
 const EVENT_COOLDOWN_MS = 2500;
+const SNAP_MARGIN = 12;
 
 function mediaSupported() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -95,13 +100,19 @@ async function mediaStart() {
   MEDIA.canvas.width = VISION_W;
   MEDIA.canvas.height = VISION_H;
   MEDIA.cctx = MEDIA.canvas.getContext('2d', { willReadFrequently: true });
-  MEDIA.prev = null;
-  MEDIA.baseline = null;
+  MEDIA.prev = MEDIA.baselineFrame = MEDIA.baseline = null;
   MEDIA.noiseEvents = MEDIA.darkEvents = MEDIA.absentEvents = MEDIA.occlusionEvents = 0;
   MEDIA.peak = 0;
 
   mediaRender();
   mediaLoop();
+
+  // Self-calibrate once the camera has settled. Requiring a button press to
+  // make detection work at all is a trap: the panel looks live, reports zero,
+  // and the user reasonably concludes it is broken.
+  setTimeout(function () {
+    if (MEDIA.stream && !MEDIA.baselineFrame) mediaCalibrate(true);
+  }, 2500);
 }
 
 function mediaStop() {
@@ -109,8 +120,8 @@ function mediaStop() {
   if (MEDIA.stream) { MEDIA.stream.getTracks().forEach(function (t) { t.stop(); }); MEDIA.stream = null; }
   if (MEDIA.audioCtx) { try { MEDIA.audioCtx.close(); } catch (e) {} MEDIA.audioCtx = null; }
   MEDIA.analyser = null;
-  MEDIA.canvas = MEDIA.cctx = MEDIA.prev = null;
-  MEDIA.loudSince = 0;
+  MEDIA.canvas = MEDIA.cctx = MEDIA.prev = MEDIA.baselineFrame = null;
+  MEDIA.loudSince = MEDIA.deviateSince = MEDIA.motionSince = 0;
   MEDIA.status = { dark: false, absent: false, occlusion: false };
   mediaRender();
 }
@@ -128,11 +139,15 @@ function mediaLevel() {
   return Math.sqrt(sum / MEDIA.data.length);
 }
 
-/* ---- Vision heuristics -------------------------------------------------- */
+/* ---- Vision ------------------------------------------------------------- */
 
-// Returns { luma, texture, motion } for the frame-guide region, or null.
+const REG = {
+  x0: Math.floor(VISION_W * 0.22), x1: Math.floor(VISION_W * 0.78),
+  y0: Math.floor(VISION_H * 0.12), y1: Math.floor(VISION_H * 0.82),
+};
+
 function mediaAnalyseFrame(video) {
-  if (!MEDIA.cctx || !video || video.readyState < 2) return null;
+  if (!MEDIA.cctx || !video) return null;
   try {
     MEDIA.cctx.drawImage(video, 0, 0, VISION_W, VISION_H);
   } catch (e) { return null; }
@@ -141,44 +156,80 @@ function mediaAnalyseFrame(video) {
   const luma = new Uint8Array(VISION_W * VISION_H);
   let total = 0;
   for (let i = 0, p = 0; i < img.length; i += 4, p++) {
-    // Rec. 601 luma, integer-ish for speed
     const y = (img[i] * 77 + img[i + 1] * 150 + img[i + 2] * 29) >> 8;
     luma[p] = y;
     total += y;
   }
   const meanLuma = total / luma.length;
 
-  // Frame-guide region, matching the dashed overlay in the CSS.
-  const x0 = Math.floor(VISION_W * 0.22), x1 = Math.floor(VISION_W * 0.78);
-  const y0 = Math.floor(VISION_H * 0.12), y1 = Math.floor(VISION_H * 0.82);
-
   let sum = 0, n = 0;
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) { sum += luma[y * VISION_W + x]; n++; }
+  for (let y = REG.y0; y < REG.y1; y++) {
+    for (let x = REG.x0; x < REG.x1; x++) { sum += luma[y * VISION_W + x]; n++; }
   }
   const regionMean = sum / n;
 
-  // Texture = mean absolute deviation. A face has structure; a blank wall does not.
-  let dev = 0;
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) dev += Math.abs(luma[y * VISION_W + x] - regionMean);
-  }
-  const texture = dev / n;
-
-  // Motion = mean absolute difference against the previous sampled frame.
-  let motion = 0;
-  if (MEDIA.prev) {
-    let d = 0;
-    for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        const idx = y * VISION_W + x;
-        d += Math.abs(luma[idx] - MEDIA.prev[idx]);
-      }
+  let dev = 0, motion = 0, deviation = 0;
+  for (let y = REG.y0; y < REG.y1; y++) {
+    for (let x = REG.x0; x < REG.x1; x++) {
+      const idx = y * VISION_W + x;
+      dev += Math.abs(luma[idx] - regionMean);
+      if (MEDIA.prev) motion += Math.abs(luma[idx] - MEDIA.prev[idx]);
+      if (MEDIA.baselineFrame) deviation += Math.abs(luma[idx] - MEDIA.baselineFrame[idx]);
     }
-    motion = d / n;
   }
+
+  const box = mediaSubjectBox(luma);
+
   MEDIA.prev = luma;
-  return { luma: meanLuma, texture: texture, motion: motion };
+  return {
+    luma: meanLuma,
+    texture: dev / n,
+    motion: MEDIA.prev ? motion / n : 0,
+    deviation: MEDIA.baselineFrame ? deviation / n : 0,
+    frame: luma,
+    box: box,
+  };
+}
+
+/* Subject bounding box from edge density.
+
+   NOT face landmark detection — there is no model here and it does not know
+   what a face is. It finds where the structure in the picture is: a person in
+   front of a wall produces a dense band of edges, a blank wall produces almost
+   none. The 10th-90th percentile of that edge mass is a stable box around
+   whatever the subject is, which is enough to judge framing and distance. */
+function mediaSubjectBox(luma) {
+  const gx = new Float32Array(VISION_W);
+  const gy = new Float32Array(VISION_H);
+  let totalEdge = 0;
+
+  for (let y = 1; y < VISION_H - 1; y++) {
+    for (let x = 1; x < VISION_W - 1; x++) {
+      const i = y * VISION_W + x;
+      const g = Math.abs(luma[i] - luma[i + 1]) + Math.abs(luma[i] - luma[i + VISION_W]);
+      if (g > 14) { gx[x] += g; gy[y] += g; totalEdge += g; }
+    }
+  }
+  if (totalEdge < 2500) return null;   // essentially nothing in frame
+
+  const bounds = function (hist, len) {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += hist[i];
+    const lo = sum * 0.10, hi = sum * 0.90;
+    let run = 0, a = 0, b = len - 1, gotA = false;
+    for (let i = 0; i < len; i++) {
+      run += hist[i];
+      if (!gotA && run >= lo) { a = i; gotA = true; }
+      if (run >= hi) { b = i; break; }
+    }
+    return [a / len, b / len];
+  };
+
+  const bx = bounds(gx, VISION_W);
+  const by = bounds(gy, VISION_H);
+  const w = bx[1] - bx[0], h = by[1] - by[0];
+  if (w <= 0.02 || h <= 0.02) return null;
+  return { x0: bx[0], y0: by[0], x1: bx[1], y1: by[1], w: w, h: h };
 }
 
 function mediaBump(kind, counterKey) {
@@ -204,13 +255,36 @@ function mediaVision(video) {
   MEDIA.status.dark = f.luma < darkLimit;
   MEDIA.status.absent = f.texture < textureLimit;
 
-  if (f.motion > OCCLUSION_DIFF) {
-    if (!MEDIA.occludeSince) MEDIA.occludeSince = now;
-    else if (now - MEDIA.occludeSince > OCCLUSION_MS) { MEDIA.status.occlusion = true; }
-  } else {
-    MEDIA.occludeSince = 0;
-    MEDIA.status.occlusion = false;
+  // Framing: where the subject is, and how much of the frame it fills.
+  MEDIA.box = f.box;
+  MEDIA.status.tooClose = MEDIA.status.tooFar = MEDIA.status.offCentre = false;
+  if (f.box) {
+    const area = f.box.w * f.box.h;
+    MEDIA.status.tooClose = area > 0.62 || f.box.h > 0.86;
+    MEDIA.status.tooFar = area < 0.10;
+    const cx = (f.box.x0 + f.box.x1) / 2;
+    MEDIA.status.offCentre = Math.abs(cx - 0.5) > 0.22;
   }
+  mediaDrawBox(f.box);
+
+  // Sustained deviation from the calibrated view. This is the signal that
+  // survives a phone being held perfectly still.
+  let occluded = false;
+  if (MEDIA.baselineFrame && f.deviation > DEVIATION_DIFF) {
+    if (!MEDIA.deviateSince) MEDIA.deviateSince = now;
+    else if (now - MEDIA.deviateSince > DEVIATION_MS) occluded = true;
+  } else {
+    MEDIA.deviateSince = 0;
+  }
+
+  // Short-term motion still counts, for the moment something swings in.
+  if (f.motion > MOTION_DIFF) {
+    if (!MEDIA.motionSince) MEDIA.motionSince = now;
+    else if (now - MEDIA.motionSince > MOTION_MS) occluded = true;
+  } else {
+    MEDIA.motionSince = 0;
+  }
+  MEDIA.status.occlusion = occluded;
 
   if (MEDIA.status.dark) mediaBump('dark', 'darkEvents');
   if (MEDIA.status.absent) mediaBump('absent', 'absentEvents');
@@ -219,23 +293,66 @@ function mediaVision(video) {
   const warn = $('#pmWarn');
   if (warn) {
     const msg = MEDIA.status.occlusion
-      ? 'Something moved in front of your face — this is the hand-near-face pattern their system flags'
+      ? (MEDIA.baselineFrame
+          ? 'Your face is blocked or you have moved — this is the pattern behind their hand-near-face rule'
+          : 'Movement in front of your face. Press Calibrate for reliable detection.')
       : MEDIA.status.absent
       ? 'Nothing detected in the frame guide — you may be out of shot'
       : MEDIA.status.dark
       ? 'Too dark for a proctor to verify your face — add light in front of you'
+      : MEDIA.status.tooClose
+      ? 'Too close — sit back so your head and shoulders both fit in frame'
+      : MEDIA.status.tooFar
+      ? 'Too far — move closer so your face fills more of the frame'
+      : MEDIA.status.offCentre
+      ? 'Off centre — move so you are in the middle of the frame'
       : '';
     warn.textContent = msg;
     warn.style.display = msg ? 'block' : 'none';
   }
 }
 
-function mediaCalibrate(video) {
+/* Draws the subject box over the preview. The video is mirrored in CSS, so
+   the overlay is mirrored the same way to stay aligned with what you see. */
+function mediaDrawBox(box) {
+  const svg = $('#pmBox');
+  if (!svg) return;
+  if (!box) { svg.style.display = 'none'; return; }
+  svg.style.display = 'block';
+
+  const bad = MEDIA.status.tooClose || MEDIA.status.tooFar || MEDIA.status.occlusion || MEDIA.status.offCentre;
+  const x = (1 - box.x1) * 100, w = box.w * 100;      // mirrored horizontally
+  const y = box.y0 * 100, h = box.h * 100;
+  const r = svg.querySelector('rect');
+  r.setAttribute('x', x); r.setAttribute('y', y);
+  r.setAttribute('width', w); r.setAttribute('height', h);
+  svg.dataset.bad = bad ? 'true' : 'false';
+
+  const label = svg.querySelector('text');
+  label.setAttribute('x', Math.min(x, 70));
+  label.setAttribute('y', Math.max(y - 2, 5));
+  label.textContent = MEDIA.status.tooClose ? 'too close'
+    : MEDIA.status.tooFar ? 'too far'
+    : MEDIA.status.offCentre ? 'off centre'
+    : 'subject';
+}
+
+function mediaCalibrate(auto) {
+  const video = $('#pmVideo');
+  MEDIA.baselineFrame = null;          // measure the raw scene, not a delta
   const f = mediaAnalyseFrame(video);
-  if (!f) { toast('Could not read the camera yet — try again in a second'); return; }
+  if (!f) {
+    if (!auto) toast('Could not read the camera yet — try again in a second');
+    else setTimeout(function () { if (MEDIA.stream && !MEDIA.baselineFrame) mediaCalibrate(true); }, 1500);
+    return;
+  }
   MEDIA.baseline = { luma: f.luma, texture: f.texture };
+  MEDIA.baselineFrame = f.frame.slice(0);
   MEDIA.darkEvents = MEDIA.absentEvents = MEDIA.occlusionEvents = 0;
-  toast('Calibrated to how you are sitting now');
+  MEDIA.deviateSince = MEDIA.motionSince = 0;
+  toast(auto
+    ? 'Baseline captured — try holding something in front of your face'
+    : 'Recalibrated to how you are sitting now');
   mediaRender();
 }
 
@@ -278,6 +395,82 @@ function mediaLoop() {
   if (v) mediaVision(v);
 }
 
+/* ---- Drag and snap ------------------------------------------------------ */
+
+function mediaApplyPos() {
+  const p = MEDIA.panel;
+  if (!p || !MEDIA.pos) return;
+  p.style.left = MEDIA.pos.left + 'px';
+  p.style.top = MEDIA.pos.top + 'px';
+  p.style.right = 'auto';
+  p.style.bottom = 'auto';
+}
+
+function mediaClamp(left, top) {
+  const p = MEDIA.panel;
+  const w = p.offsetWidth, h = p.offsetHeight;
+  return {
+    left: Math.max(0, Math.min(left, window.innerWidth - w)),
+    top: Math.max(0, Math.min(top, window.innerHeight - h)),
+  };
+}
+
+// Magnet to whichever of the four edges is nearest.
+function mediaSnap() {
+  const p = MEDIA.panel;
+  const r = p.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const d = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
+  const nearest = Object.keys(d).reduce(function (a, b) { return d[b] < d[a] ? b : a; });
+
+  let left = r.left, top = r.top;
+  if (nearest === 'left') left = SNAP_MARGIN;
+  else if (nearest === 'right') left = vw - r.width - SNAP_MARGIN;
+  else if (nearest === 'top') top = SNAP_MARGIN;
+  else top = vh - r.height - SNAP_MARGIN;
+
+  MEDIA.pos = mediaClamp(left, top);
+  p.dataset.snapping = 'true';
+  mediaApplyPos();
+  setTimeout(function () { if (MEDIA.panel) MEDIA.panel.dataset.snapping = 'false'; }, 200);
+
+  STATE.mediaPos = MEDIA.pos;
+  saveState();
+}
+
+function mediaDragStart(e) {
+  if (e.target.closest('.pm-icon')) return;   // buttons stay buttons
+  const p = MEDIA.panel;
+  p.dataset.snapping = 'false';   // kill any in-flight snap so drag tracks the pointer
+  const r = p.getBoundingClientRect();
+  MEDIA.drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+  MEDIA.pos = { left: r.left, top: r.top };
+  mediaApplyPos();
+  p.dataset.dragging = 'true';
+  try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+}
+
+function mediaDragMove(e) {
+  if (!MEDIA.drag) return;
+  MEDIA.pos = mediaClamp(e.clientX - MEDIA.drag.dx, e.clientY - MEDIA.drag.dy);
+  mediaApplyPos();
+}
+
+function mediaDragEnd() {
+  if (!MEDIA.drag) return;
+  MEDIA.drag = null;
+  if (MEDIA.panel) MEDIA.panel.dataset.dragging = 'false';
+  mediaSnap();
+}
+
+window.addEventListener('pointermove', mediaDragMove);
+window.addEventListener('pointerup', mediaDragEnd);
+window.addEventListener('pointercancel', mediaDragEnd);
+window.addEventListener('resize', function () {
+  if (MEDIA.pos && MEDIA.panel) { MEDIA.pos = mediaClamp(MEDIA.pos.left, MEDIA.pos.top); mediaApplyPos(); }
+});
+
 /* ---- Panel -------------------------------------------------------------- */
 
 function mediaEnsurePanel() {
@@ -285,6 +478,7 @@ function mediaEnsurePanel() {
   const p = el('div', { class: 'pm-panel', id: 'pmPanel' });
   document.body.appendChild(p);
   MEDIA.panel = p;
+  if (!MEDIA.pos && STATE.mediaPos) MEDIA.pos = STATE.mediaPos;
   return p;
 }
 
@@ -300,7 +494,9 @@ function mediaRender() {
   clear(p);
   p.dataset.collapsed = MEDIA.collapsed ? 'true' : 'false';
 
-  const head = el('div', { class: 'pm-head' });
+  const head = el('div', { class: 'pm-head', title: 'Drag to move — releases snap to the nearest edge' });
+  head.addEventListener('pointerdown', mediaDragStart);
+  head.appendChild(el('span', { class: 'pm-grip', text: '⠿' }));
   head.appendChild(el('span', { class: 'pm-dot', 'data-on': MEDIA.stream ? 'true' : 'false' }));
   head.appendChild(el('strong', { text: 'Proctor preview' }));
   head.appendChild(el('span', { style: 'flex:1' }));
@@ -314,6 +510,7 @@ function mediaRender() {
     onclick: function () { mediaStop(); mediaHide(); },
   }));
   p.appendChild(head);
+  if (MEDIA.pos) mediaApplyPos();
   if (MEDIA.collapsed) return;
 
   const body = el('div', { class: 'pm-body' });
@@ -338,6 +535,23 @@ function mediaRender() {
   v.srcObject = MEDIA.stream;
   vidWrap.appendChild(v);
   vidWrap.appendChild(el('div', { class: 'pm-frame-guide' }));
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('id', 'pmBox');
+  svg.setAttribute('class', 'pm-box');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.style.display = 'none';
+  const rect = document.createElementNS(svgNS, 'rect');
+  rect.setAttribute('rx', '3');
+  rect.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.appendChild(rect);
+  const label = document.createElementNS(svgNS, 'text');
+  label.setAttribute('class', 'pm-box-label');
+  svg.appendChild(label);
+  vidWrap.appendChild(svg);
+
   body.appendChild(vidWrap);
 
   body.appendChild(el('div', { class: 'pm-warn', id: 'pmWarn', style: 'display:none' }));
@@ -360,24 +574,36 @@ function mediaRender() {
 
   const btns = el('div', { style: 'display:flex;gap:6px' });
   btns.appendChild(el('button', {
-    class: 'btn btn-sm', style: 'flex:1',
-    text: MEDIA.baseline ? 'Recalibrate' : 'Calibrate',
-    title: 'Sit as you will during the test, then press this to set the baseline',
-    onclick: function () { mediaCalibrate($('#pmVideo')); },
+    class: 'btn btn-sm' + (MEDIA.baselineFrame ? '' : ' btn-primary'), style: 'flex:1',
+    text: MEDIA.baselineFrame ? 'Recalibrate' : 'Calibrate',
+    title: 'Sit as you will during the test, then press this',
+    onclick: function () { mediaCalibrate(false); },
   }));
   btns.appendChild(el('button', { class: 'btn btn-sm', style: 'flex:1', text: 'Turn off', onclick: function () { mediaStop(); } }));
   body.appendChild(btns);
 
-  body.appendChild(el('p', {
-    class: 'pm-note',
-    text: MEDIA.baseline
-      ? 'Calibrated. Warnings are now measured against how you were sitting.'
-      : 'Press Calibrate while sitting normally — the warnings get much more accurate once they have a baseline.',
-  }));
-  body.appendChild(el('p', {
-    class: 'pm-note', style: 'opacity:.8',
-    text: 'Heuristics, not object recognition: brightness, texture in the guide, and movement in front of your face. It cannot tell a phone from a mug — it tells you when your face gets blocked, which is what their rule fires on.',
-  }));
+  // Explanatory text, collapsed by default so the panel stays small.
+  const notes = el('div', { class: 'pm-notes' });
+  const toggle = el('button', {
+    class: 'pm-notes-toggle', type: 'button',
+    onclick: function () { MEDIA.notesOpen = !MEDIA.notesOpen; mediaRender(); },
+  });
+  toggle.appendChild(el('span', { class: 'pm-caret', text: MEDIA.notesOpen ? '▾' : '▸' }));
+  toggle.appendChild(el('span', { text: MEDIA.notesOpen ? 'Hide details' : 'How this works' }));
+  notes.appendChild(toggle);
+  if (MEDIA.notesOpen) {
+    notes.appendChild(el('p', {
+      class: 'pm-note',
+      text: MEDIA.baselineFrame
+        ? 'Calibrated. Every frame is compared against how you were sitting, so something parked in front of your face is caught even when it is perfectly still.'
+        : 'Press Calibrate while sitting normally. Without a baseline only movement is detectable — a phone held still registers nothing.',
+    }));
+    notes.appendChild(el('p', {
+      class: 'pm-note',
+      text: 'The green box is a subject outline built from edge density — where the structure in the picture is. It is not face-landmark tracking and there is no model here: it cannot tell a phone from a mug. What it does know is brightness, how much of the frame you fill, whether you are centred, and how far the view has drifted from your baseline. That last one is what catches something held still in front of your face.',
+    }));
+  }
+  body.appendChild(notes);
 
   p.appendChild(body);
 }

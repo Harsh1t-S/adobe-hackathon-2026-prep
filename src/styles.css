@@ -349,6 +349,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* === Primitives =========================================================== */
 
+/* Default size for every inline SVG. Without this an .ico with no
+   parent-specific rule expands to fill its container — which is exactly how a
+   16px tick became a full-card X in the answer verdict. */
+.ico { width: 16px; height: 16px; flex: none; }
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
