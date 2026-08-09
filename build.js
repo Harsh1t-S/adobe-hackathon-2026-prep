@@ -52,7 +52,11 @@ const DATA = {
   dev: dev,
 };
 
-const css = fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8');
+// All top-level stylesheets, alphabetically: styles.css then z-exam.css.
+const css = fs.readdirSync(SRC)
+  .filter(f => f.endsWith('.css')).sort()
+  .map(f => fs.readFileSync(path.join(SRC, f), 'utf8'))
+  .join('\n\n');
 const jsFiles = fs.readdirSync(path.join(SRC, 'js')).filter(f => f.endsWith('.js')).sort();
 const js = jsFiles.map(f => fs.readFileSync(path.join(SRC, 'js', f), 'utf8')).join('\n\n');
 

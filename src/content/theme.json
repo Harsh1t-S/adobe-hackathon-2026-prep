@@ -1,0 +1,237 @@
+[
+  {
+    "id": "th-llm-basics",
+    "section": "Agents & LLM fundamentals",
+    "title": "Tokens, context windows and why they constrain everything",
+    "body": "A language model does not read characters or words. It reads **tokens** — subword fragments produced by a tokeniser. In English, roughly 1 token ≈ 4 characters ≈ 0.75 words, so a 1,000-word page is about 1,300 tokens. Rare words, code and non-Latin scripts tokenise less efficiently.\n\nThe **context window** is the total number of tokens the model can attend to in one request: the system prompt, the conversation so far, any retrieved documents, and the response it is generating. Everything competes for the same budget.\n\nThis single constraint explains most of the architecture in agentic systems:\n\n- You cannot paste your whole knowledge base into the prompt, so you **retrieve** the relevant slice — that is what RAG exists for.\n- Long conversations must be summarised or truncated, which is why agents need **memory** strategies rather than just longer transcripts.\n- Cost and latency both scale with tokens processed, so trimming context is a direct performance optimisation, not just housekeeping.\n\nFor brand visibility the implication is sharp: when a user asks an assistant a question, only a handful of sources make it into the context window. Being retrievable is not enough — you have to be selected into that small set, and then survive the model's decision about what to cite.",
+    "keyTerms": [
+      { "term": "Token", "definition": "The subword unit a model actually processes; ~4 characters of English on average." },
+      { "term": "Context window", "definition": "Maximum tokens a model can consider in one request, shared across prompt, retrieved documents and output." },
+      { "term": "Truncation", "definition": "Dropping tokens that no longer fit, usually the oldest — a silent cause of an agent 'forgetting'." }
+    ],
+    "whyItMatters": "Every retrieval, chunking and memory decision in an agent exists because the context window is finite.",
+    "examTie": "MCQ: estimating token counts, or which component is dropped first when context overflows. Case study: arguing why only a few sources get cited per answer."
+  },
+  {
+    "id": "th-embeddings",
+    "section": "Agents & LLM fundamentals",
+    "title": "Embeddings and vector search",
+    "body": "An **embedding** maps a piece of text to a fixed-length vector of floats such that semantically similar texts land close together. \"How do I cancel my plan\" and \"steps to end my subscription\" share almost no keywords but sit near each other in embedding space.\n\nA **vector database** stores these vectors and answers nearest-neighbour queries. Similarity is normally **cosine similarity** — the angle between vectors, which ignores magnitude and so is robust to document length. Exact nearest-neighbour search is O(n) per query, so production systems use **ANN** (approximate nearest neighbour) indexes such as HNSW or IVF, trading a small recall loss for large speed gains.\n\nCritical practical points:\n\n- **Query and documents must use the same embedding model.** Mixing models produces vectors in incompatible spaces and the results are quietly meaningless rather than obviously broken.\n- Embeddings capture semantic similarity, not truth or recency. A confidently wrong 2019 page embeds just as well as a correct 2026 one.\n- **Hybrid search** — combining vector similarity with classic keyword search (BM25) — usually beats either alone, because exact terms like product names and error codes matter and embeddings blur them.",
+    "keyTerms": [
+      { "term": "Embedding", "definition": "A dense vector representation of text where distance encodes semantic similarity." },
+      { "term": "Cosine similarity", "definition": "Similarity measured as the cosine of the angle between two vectors; length-invariant." },
+      { "term": "ANN index", "definition": "Approximate nearest-neighbour structure (HNSW, IVF) that trades exact recall for sub-linear query time." },
+      { "term": "Hybrid search", "definition": "Blending dense vector retrieval with sparse keyword retrieval such as BM25." }
+    ],
+    "whyItMatters": "Retrieval quality caps answer quality — a perfect model cannot cite a document your retriever never returned.",
+    "examTie": "MCQ: cosine vs Euclidean, why ANN is used, what breaks when embedding models are mixed."
+  },
+  {
+    "id": "th-rag",
+    "section": "Agents & LLM fundamentals",
+    "title": "RAG, end to end",
+    "body": "**Retrieval-Augmented Generation** grounds a model's answer in documents fetched at query time rather than relying on what it memorised during training.\n\nThe pipeline, in order:\n\n1. **Ingest** — collect source documents.\n2. **Chunk** — split them into retrievable pieces.\n3. **Embed** — vectorise each chunk and store it with metadata.\n4. **Retrieve** — embed the user's query, fetch the top-k nearest chunks.\n5. **Rerank** *(optional but high value)* — a cross-encoder rescores the top-k with the query and chunk seen together, which is far more accurate than the initial bi-encoder similarity.\n6. **Assemble** — build a prompt containing the query plus the surviving chunks.\n7. **Generate** — the model answers, ideally citing which chunk supported which claim.\n\nRAG fixes three problems at once: knowledge cutoffs, hallucination on facts the model never learned, and the impossibility of fine-tuning on constantly changing data. What it does *not* fix is reasoning quality — bad retrieval yields a fluent answer built on the wrong documents, which is more dangerous than an obvious failure.\n\nThe usual failure modes: chunks too large so the signal is diluted; chunks too small so context is lost; retrieving k documents that are all near-duplicates; and no reranking, so a marginally-relevant chunk crowds out the right one.",
+    "keyTerms": [
+      { "term": "RAG", "definition": "Retrieval-Augmented Generation — grounding answers in documents retrieved at query time." },
+      { "term": "Top-k", "definition": "The number of chunks pulled into the prompt; the main precision/recall dial." },
+      { "term": "Reranker", "definition": "A cross-encoder that rescores retrieved candidates by reading query and chunk together." },
+      { "term": "Grounding", "definition": "Tying generated claims to specific retrieved source text." }
+    ],
+    "whyItMatters": "AI answer engines are RAG systems. Understanding the pipeline tells you exactly which stage your brand is failing at.",
+    "examTie": "Case study gold: 'we are retrieved but not cited' is a rerank/selection problem, not a crawling problem — naming the right stage scores heavily."
+  },
+  {
+    "id": "th-chunking",
+    "section": "Agents & LLM fundamentals",
+    "title": "Chunking strategy — the most underrated lever",
+    "body": "Chunking decides what a retriever can possibly return. Get it wrong and no amount of model quality recovers.\n\n**Fixed-size chunking** splits every N tokens with an overlap of perhaps 10–20%. Simple, predictable, and it cheerfully cuts sentences and tables in half.\n\n**Semantic or structural chunking** splits on document structure — headings, sections, paragraphs — so each chunk is a self-contained idea. For web content this is decisively better, and it is why heading hierarchy has become a retrieval concern rather than a styling one.\n\n**Overlap** exists so a fact spanning a boundary appears whole in at least one chunk. It costs storage and can cause duplicate retrievals.\n\nThe practical rules:\n\n- A chunk should answer a question **on its own**. If it needs the previous chunk to make sense, it is mis-split.\n- Keep tables and code blocks intact; splitting them destroys their meaning entirely.\n- Attach metadata — source URL, title, section heading, publish date — to every chunk. Retrieval filters and citations both depend on it.\n- Prepend the document title and section heading to each chunk's text. It is a small change that measurably improves retrieval, because the chunk now carries its own context.\n\nThis is the direct mechanism linking *page structure* to *AI visibility*: content written as one long undifferentiated essay chunks badly, retrieves badly and gets cited less.",
+    "keyTerms": [
+      { "term": "Fixed-size chunking", "definition": "Splitting every N tokens regardless of meaning, usually with overlap." },
+      { "term": "Structural chunking", "definition": "Splitting on headings and sections so each chunk is self-contained." },
+      { "term": "Overlap", "definition": "Shared text between adjacent chunks so boundary-spanning facts survive." }
+    ],
+    "whyItMatters": "'Restructure the page into self-contained Q&A blocks under clear headings' is an actionable recommendation with a real mechanism behind it.",
+    "examTie": "The single most useful concrete recommendation you can make in a brand-visibility case study."
+  },
+  {
+    "id": "th-tools",
+    "section": "Agents & LLM fundamentals",
+    "title": "Tool calling and the ReAct loop",
+    "body": "A model alone can only emit text. **Tool calling** (function calling) is what turns it into an agent: you describe a set of functions with typed JSON schemas, and the model responds with a structured request to call one, which your code executes and feeds back.\n\nThe **ReAct** pattern — Reason + Act — is the loop this runs in:\n\n```text\nThought  -> what do I need to find out?\nAction   -> call tool(args)\nObservation -> the tool's result\nThought  -> ...repeat until the task is done\nFinal answer\n```\n\nThe model never runs anything itself. Your runtime validates arguments, executes, handles errors and decides whether to continue. That separation is where all the safety lives: the schema is a contract, and anything the model returns must be validated against it before it touches a real system.\n\nDesign rules that matter in practice:\n\n- **Tool descriptions are prompt engineering.** A vague description produces a model that picks the wrong tool.\n- **Keep the tool set small.** Accuracy of selection degrades as the menu grows; group related actions rather than exposing dozens of near-identical functions.\n- **Return errors as observations**, not exceptions. An agent that sees `\"error: no results for that date range\"` can recover; one that crashes cannot.\n- **Cap the loop.** Always bound iterations, or a confused agent will spin until it exhausts your budget.",
+    "keyTerms": [
+      { "term": "Tool / function calling", "definition": "The model emitting a structured, schema-validated request for your code to execute." },
+      { "term": "ReAct", "definition": "Interleaving reasoning steps with tool actions and observations until the task completes." },
+      { "term": "Observation", "definition": "The tool result fed back into the model's context for the next reasoning step." }
+    ],
+    "whyItMatters": "This is the mechanism behind every 'agent' in the theme — including the shopping agent that will or will not pick your product.",
+    "examTie": "MCQ: who actually executes a tool call (your runtime, not the model). Round 3: this is the core loop you will build."
+  },
+  {
+    "id": "th-mcp",
+    "section": "Agents & LLM fundamentals",
+    "title": "MCP — Model Context Protocol",
+    "body": "**MCP** is an open protocol, introduced by Anthropic in late 2024 and since adopted broadly across the industry, that standardises how AI applications connect to external tools and data.\n\nBefore it, every assistant and every data source needed a bespoke integration — an N×M problem. MCP turns that into N+M: a data source implements one MCP **server**, and any MCP-capable **client** can use it.\n\nAn MCP server exposes three kinds of capability:\n\n- **Tools** — functions the model can invoke (side effects allowed).\n- **Resources** — data the client can read into context (files, records, documents).\n- **Prompts** — reusable templates the user can invoke deliberately.\n\nTransport is JSON-RPC over stdio for local servers or HTTP/SSE for remote ones.\n\nWhy this belongs in a brand-visibility discussion: MCP is one of the routes by which a brand becomes *directly* available to agents rather than only through crawled web pages. Shipping an MCP server that exposes your catalogue, availability or documentation makes your brand a first-class tool an assistant can call, rather than a page it might retrieve. That is a genuinely forward-looking recommendation in a case study, and it is concrete rather than hand-waving.",
+    "keyTerms": [
+      { "term": "MCP", "definition": "Model Context Protocol — an open standard for connecting AI applications to tools and data sources." },
+      { "term": "MCP server", "definition": "A process exposing tools, resources and prompts over the protocol." },
+      { "term": "N+M integration", "definition": "The reduction in integration effort from bespoke pairwise connectors to one standard interface per side." }
+    ],
+    "whyItMatters": "The clearest existing answer to 'how does a brand make itself directly usable by an agent, not just findable by a crawler'.",
+    "examTie": "A high-credibility recommendation in the Round 2 case, and a plausible Round 3 build component."
+  },
+  {
+    "id": "th-hallucination",
+    "section": "Agents & LLM fundamentals",
+    "title": "Hallucination, grounding and evaluation",
+    "body": "A **hallucination** is fluent output unsupported by any source — the model producing what is statistically plausible rather than what is true. It is not a bug to be patched out; it is a consequence of next-token prediction, and it is managed rather than eliminated.\n\nThe mitigations that actually work:\n\n- **Grounding** — supply the facts in context via retrieval instead of relying on parametric memory.\n- **Citation requirements** — instruct the model to attribute each claim to a retrieved chunk, then verify the citations resolve.\n- **Abstention** — explicitly permit \"I don't know\". Models over-answer when the prompt implies an answer must exist.\n- **Constrained output** — schemas and enums remove whole classes of invention.\n\n**Evaluation** is the discipline that tells you whether any of this worked. Build a fixed eval set of representative inputs with known-good outputs, then score automatically. **LLM-as-judge** — a second model scoring outputs against a rubric — scales well but has known biases: it favours longer answers, prefers its own style, and is sensitive to option order. Mitigate by randomising positions, using a concrete rubric rather than \"rate 1–10\", and spot-checking against human labels.\n\nFor brand visibility this doubles as the measurement method: your eval set is a panel of prompts, and what you are scoring is whether you appear, where, and how you are described.",
+    "keyTerms": [
+      { "term": "Hallucination", "definition": "Confident output not supported by any source." },
+      { "term": "Grounding", "definition": "Constraining generation to supplied, retrieved evidence." },
+      { "term": "LLM-as-judge", "definition": "Using a model to score outputs against a rubric; scalable but biased toward length and its own style." },
+      { "term": "Abstention", "definition": "Explicitly allowing the model to decline rather than guess." }
+    ],
+    "whyItMatters": "If an assistant states something wrong about your brand, the fix is almost always the retrievable source, not the model.",
+    "examTie": "Curveball favourite: 'what if the AI describes your product incorrectly?'"
+  },
+  {
+    "id": "th-multiagent",
+    "section": "Agents & LLM fundamentals",
+    "title": "Planning, memory and multi-agent orchestration",
+    "body": "**Planning** separates deciding from doing. A planner decomposes a goal into steps before execution, which beats greedy step-by-step reasoning on long tasks — and lets you show the user a plan before anything irreversible happens.\n\n**Memory** comes in layers, and conflating them is a common design error:\n\n- *Working memory* — the current context window.\n- *Short-term* — a running summary of the session, compacted as it grows.\n- *Long-term* — durable facts in a store, retrieved when relevant.\n\n**Multi-agent orchestration** splits work across specialised agents. The usual shapes:\n\n- **Supervisor / worker** — one orchestrator decomposes and delegates, workers report back. Predictable and easy to debug.\n- **Pipeline** — fixed stages, each agent's output feeding the next.\n- **Debate / critic** — one agent produces, another attacks, improving reliability on judgement-heavy tasks.\n\nMulti-agent is not automatically better. It multiplies token cost, adds coordination failure modes, and errors compound across handoffs. Use it when subtasks are genuinely independent (parallel speedup) or when an adversarial second opinion measurably improves quality — not because it sounds sophisticated. Saying that out loud in a case study or a Round 3 pitch reads as judgement rather than buzzword fluency.",
+    "keyTerms": [
+      { "term": "Supervisor pattern", "definition": "A single orchestrating agent that decomposes a goal and delegates to workers." },
+      { "term": "Context compaction", "definition": "Summarising older conversation to free context while retaining the thread." },
+      { "term": "Critic agent", "definition": "A second agent that reviews or attacks the first's output to catch errors." }
+    ],
+    "whyItMatters": "Knowing when NOT to use multiple agents is the part that distinguishes an engineer from someone repeating a trend.",
+    "examTie": "Round 3 architecture defence: judges ask why you chose the design you did."
+  },
+  {
+    "id": "th-geo",
+    "section": "Brand visibility in the agentic era",
+    "title": "GEO and AEO — and how they differ from SEO",
+    "body": "**SEO** optimises for position in a ranked list of links that a human then scans and clicks. The unit of success is a *ranking*, and the payoff is a *click*.\n\n**AEO (Answer Engine Optimization)** targets being the source used to construct a direct answer — featured snippets, voice assistants, AI overviews. The unit of success is *being the answer*.\n\n**GEO (Generative Engine Optimization)** targets being retrieved, selected and cited inside a synthesised generative answer, and being *characterised favourably* within it. The unit of success is a *citation plus a description*.\n\nWhat actually changes:\n\n| | SEO | GEO |\n|---|---|---|\n| Target | Rank in a list | Citation inside an answer |\n| Unit of demand | Keyword | Prompt, often long and conversational |\n| Competitive set | Ten blue links | Three to five cited sources |\n| Payoff | Click | Mention, citation, recommendation |\n| Measurement | Rank tracking, deterministic | Prompt sampling, probabilistic |\n\nWhat carries over: technical crawlability, genuine authority, freshness, and content that answers a real question. What is new: writing in self-contained retrievable blocks, being consistent across the web so entity resolution works, earning presence on the third-party sources assistants trust for comparisons, and accepting that measurement is sampled rather than exact.\n\nThe honest framing for a case study: GEO is not a replacement discipline with a separate budget. It is largely SEO's technical foundation plus a different content shape and a different measurement model.",
+    "keyTerms": [
+      { "term": "GEO", "definition": "Generative Engine Optimization — optimising to be retrieved and cited inside AI-generated answers." },
+      { "term": "AEO", "definition": "Answer Engine Optimization — optimising to be the direct answer to a question." },
+      { "term": "Prompt", "definition": "The unit of demand in generative search, replacing the keyword." }
+    ],
+    "whyItMatters": "The vocabulary the case study will be written in. Using it precisely signals you understand the mechanism, not just the acronym.",
+    "examTie": "Near-certain to appear. Be able to state the SEO/GEO difference in two sentences without waffle."
+  },
+  {
+    "id": "th-citation",
+    "section": "Brand visibility in the agentic era",
+    "title": "How answer engines select and cite sources",
+    "body": "Broadly, a generative answer engine runs a RAG pipeline against a live index:\n\n1. **Query fan-out** — your one prompt is rewritten into several search queries. A question like \"best project tool for a 200-person engineering org\" may become separate searches for team-size guidance, category comparisons, and pricing.\n2. **Retrieval** — each query hits a search index; candidate pages come back.\n3. **Selection and reranking** — a small number of passages survive into the context window.\n4. **Synthesis** — the model composes an answer from the surviving passages.\n5. **Attribution** — citations are attached to the claims they support.\n\nEvery stage is a place to lose:\n\n- **Not indexed** — crawler blocked, JavaScript-only rendering, no sitemap. You never enter the funnel.\n- **Not retrieved** — your page does not match the *rewritten* queries, which are often more specific than the head term you optimised for.\n- **Retrieved but not selected** — the passage is not self-contained, so a competitor's tighter section wins the slot.\n- **Selected but not cited** — your fact was used but attributed elsewhere, often because an aggregator stated it more quotably.\n- **Cited but poorly characterised** — you appear as the expensive option or the one with slow onboarding.\n\nDiagnosing *which* stage you are failing at is the single most valuable analytical move available in the Round 2 case, because each stage has a completely different fix.",
+    "keyTerms": [
+      { "term": "Query fan-out", "definition": "Expansion of one user prompt into several underlying search queries." },
+      { "term": "Passage selection", "definition": "Choosing which retrieved chunks make it into the generation context." },
+      { "term": "Attribution", "definition": "Linking a generated claim back to the source that supported it." }
+    ],
+    "whyItMatters": "Turns 'we are invisible' into a specific, fixable stage failure.",
+    "examTie": "Use this ladder to structure your diagnosis answer. It reads as mechanism-level understanding."
+  },
+  {
+    "id": "th-sov",
+    "section": "Brand visibility in the agentic era",
+    "title": "Share of voice and measurement without a rank tracker",
+    "body": "There is no rank tracker for generative answers, because there is no stable ranked list — answers are non-deterministic, personalised and change between runs. Measurement therefore becomes **sampling**, and you must design it deliberately.\n\nA workable measurement system:\n\n1. **Define a prompt panel** — 100–300 prompts representing real category demand, segmented by intent: discovery (\"what is X\"), comparison (\"X vs Y\"), and transactional (\"best X for Z, under ₹N\").\n2. **Sample on a schedule** — run every prompt across each assistant you care about, several times per period, from a consistent locale and a clean session so personalisation does not contaminate the baseline.\n3. **Extract** — for each answer, log which brands are mentioned, in what order, which URLs are cited, and the sentiment of the description.\n4. **Score** — share of voice = your weighted mentions ÷ all brand mentions. Weight by citation position; being named first is worth far more than being fourth.\n5. **Track the trend, with error bars.** A single week's number is noise. Report a rolling average and be explicit about variance.\n\nThe statistical discipline matters. If your sample gives ±6 points of week-to-week noise and you announce a 4-point improvement, you have announced nothing. Increase samples per prompt until the noise floor is below the effect you care about — and say so in the case study, because almost nobody does, and it is exactly the analytical rigour the rubric rewards.",
+    "keyTerms": [
+      { "term": "Prompt panel", "definition": "A fixed, representative set of prompts sampled repeatedly to measure visibility over time." },
+      { "term": "Share of voice", "definition": "Your share of total brand mentions or citations across sampled answers, ideally position-weighted." },
+      { "term": "Non-determinism", "definition": "The same prompt yielding different answers across runs, forcing statistical rather than exact measurement." }
+    ],
+    "whyItMatters": "'You cannot improve what you cannot measure, and measurement here is sampling' is the strongest opening move in most of these cases.",
+    "examTie": "A question asking you to design the measurement system is highly likely. This card is the answer."
+  },
+  {
+    "id": "th-structured",
+    "section": "Brand visibility in the agentic era",
+    "title": "Structured data, entities and product feeds",
+    "body": "**Schema.org markup** (usually JSON-LD in the page head) states explicitly what a page is about: `Product` with price and availability, `FAQPage` with question–answer pairs, `Organization`, `Review`, `HowTo`. It removes the need for a machine to infer structure from prose, and it is a precondition for anything transactional.\n\n**Entity consistency** is the less obvious half. Search and answer systems resolve your brand to an entity in a knowledge graph. If your name, category, founding details, executives and descriptions differ across your site, Wikipedia/Wikidata, LinkedIn, review platforms and directories, resolution gets noisy and you show up less confidently — or get conflated with a similarly named company. Auditing and aligning that footprint is unglamorous and genuinely effective.\n\n**Product feeds** matter enormously for agentic commerce. An agent asked to \"reorder my usual groceries under ₹2,000\" needs machine-readable price, availability, size, substitutions and delivery windows. If your catalogue exists only as rendered HTML behind a JavaScript app, you are not a candidate — not because you lost a ranking, but because you were never parseable in the first place.\n\nThis is why \"audit feed completeness before touching the website\" is a genuinely strong recommendation: it is cheap, fast, engineering-owned, and it gates everything downstream.",
+    "keyTerms": [
+      { "term": "JSON-LD", "definition": "The recommended format for embedding schema.org structured data in a page." },
+      { "term": "Entity resolution", "definition": "A system mapping mentions of a brand to a single knowledge-graph entity." },
+      { "term": "Product feed", "definition": "A machine-readable catalogue of items with price, availability and attributes." }
+    ],
+    "whyItMatters": "The cheapest, fastest, most defensible recommendation in almost any brand-visibility case.",
+    "examTie": "Name the specific schema types. 'Add Product and FAQPage schema to the 40 SKU pages missing it' beats 'use structured data'."
+  },
+  {
+    "id": "th-crawlers",
+    "section": "Brand visibility in the agentic era",
+    "title": "AI crawlers, robots.txt and llms.txt",
+    "body": "AI systems reach your content through named crawlers, and they split into two purposes that you can control separately:\n\n- **Training crawlers** collect data to train future models.\n- **Retrieval / user-triggered fetchers** fetch pages live to answer a specific question right now.\n\n`robots.txt` lets you allow or disallow specific user-agents. The strategic point: blocking a *training* crawler protects your content from being absorbed into model weights, while blocking a *retrieval* fetcher removes you from live answers your customers are reading today. Those are very different trades, and conflating them is the most common mistake in this debate.\n\n**`llms.txt`** is a proposed convention — a markdown file at your domain root offering a curated, LLM-friendly map of your most important content. Adoption is not universal and it is not a standard in the way `robots.txt` is; treat it as cheap, low-risk, and not a substitute for structured content.\n\nThe publisher's dilemma sits here: block and lose visibility, allow and be summarised without traffic, or license and get paid. Several large publishers have taken the licensing route. For most non-publisher brands the calculus is simpler — your content is marketing for a product you sell, so being read is the point, and blocking retrieval fetchers is self-harm.",
+    "keyTerms": [
+      { "term": "robots.txt", "definition": "Per-user-agent crawl directives at your domain root." },
+      { "term": "llms.txt", "definition": "A proposed markdown index of a site's key content aimed at LLM consumption; a convention, not a standard." },
+      { "term": "Training vs retrieval crawler", "definition": "Bots that gather data for model training versus those fetching pages live to answer a query." }
+    ],
+    "whyItMatters": "The distinction between training and retrieval crawlers is the crux of the 'should we block AI' question.",
+    "examTie": "Expect a curveball on blocking. Make the training/retrieval distinction and you have separated yourself from most answers."
+  },
+  {
+    "id": "th-zeroclick",
+    "section": "Brand visibility in the agentic era",
+    "title": "Zero-click, and what replaces the click",
+    "body": "When an assistant answers directly, the user's need is met without visiting a source. Traffic falls even when brand presence holds — sometimes *especially* when it holds, because a complete answer removes the reason to click.\n\nThis breaks the entire measurement stack that marketing teams grew up on. Sessions, bounce rate and click-through were proxies for attention; they no longer capture attention that happens inside someone else's interface.\n\nWhat replaces them:\n\n- **Citation share** — how often you are the cited source on your panel of prompts.\n- **Answer presence and position** — are you mentioned, and how early.\n- **Sentiment and framing** — being cited as \"the enterprise-grade option\" versus \"a cheaper alternative\" are very different outcomes from the same citation count.\n- **Branded search and direct volume** — the durable downstream signal that AI exposure is working, because people who heard about you inside an answer later look you up by name.\n- **Assisted conversions** — conversions where an AI referral appears anywhere in the path.\n\nThe strategic reframing to state plainly in a case study: **stop optimising for the click, start optimising for the mention** — while being honest that attribution is now weaker and holdout tests, not last-click models, are how you will prove impact.",
+    "keyTerms": [
+      { "term": "Zero-click", "definition": "The user's need satisfied within the answer surface, with no visit to the source." },
+      { "term": "Citation share", "definition": "Proportion of sampled answers in which your domain is a cited source." },
+      { "term": "Holdout test", "definition": "Improving one segment and not another to infer causal impact where attribution is unreliable." }
+    ],
+    "whyItMatters": "Explains why traffic can fall while the brand is doing fine — and why traffic alone is now the wrong KPI.",
+    "examTie": "Nearly every case will hand you a declining-traffic chart. This is how you interpret it without panicking."
+  },
+  {
+    "id": "th-agentic-commerce",
+    "section": "Brand visibility in the agentic era",
+    "title": "Agentic commerce — when the buyer is software",
+    "body": "The theme's sharpest edge: an agent that does not just recommend but **transacts**. \"Reorder my usual groceries, keep it under ₹2,000, swap anything out of stock.\"\n\nWhen software is the buyer, the levers change:\n\n- **Persuasion stops working.** Photography, copy and emotional positioning are aimed at a human visual system the agent does not have. What survives is structured fact: price, availability, specification, delivery window, return policy, rating.\n- **Machine-readability becomes the shelf.** If your catalogue is not parseable, you are not on the shelf at all.\n- **Constraint satisfaction decides the winner.** The agent is solving \"under ₹2,000, in stock, delivers tomorrow\". Being 3% cheaper on a matched specification can beat twenty years of brand equity for that transaction.\n- **The brand's job shifts upstream** — to being the *specified* brand, the one the user names in the prompt, because that is the only part the agent will not optimise away.\n\nThat last point is the genuinely interesting strategic tension, and a strong case-study answer names it: in an agentic funnel, brand equity's role moves from winning the purchase decision to surviving the constraint filter and being named in the prompt.",
+    "keyTerms": [
+      { "term": "Agentic commerce", "definition": "Purchases researched, decided or executed by an autonomous agent on a user's behalf." },
+      { "term": "Constraint satisfaction", "definition": "The agent matching hard requirements — price, availability, delivery — before any preference applies." },
+      { "term": "Specified brand", "definition": "A brand named directly in the user's prompt, bypassing the agent's selection entirely." }
+    ],
+    "whyItMatters": "The most forward-looking framing available for this theme, and it produces genuinely non-obvious recommendations.",
+    "examTie": "If a case involves retail, groceries or e-commerce, this is your differentiating angle."
+  },
+  {
+    "id": "th-sentiment",
+    "section": "Brand visibility in the agentic era",
+    "title": "How you are described, not just whether you appear",
+    "body": "Citation count is a vanity metric on its own. Being mentioned as \"powerful but with a steep learning curve and slow support\" in every comparison is worse than three neutral mentions.\\n\\nWhere an assistant's characterisation of you comes from:\\n\\n- **Review platforms and aggregators** — heavily weighted for comparison prompts, because they are structured, comparative and perceived as independent.\\n- **Third-party roundups and 'best X' listicles** — the exact format that answers comparison questions, which is why competitors who invest in being listed get cited more.\\n- **Your own documentation** — surprisingly influential, and the part you fully control.\\n- **Old content that never died.** A 2023 review describing a since-fixed problem stays retrievable forever and keeps shaping how you are described.\\n\\nThe actionable move is a **sentiment audit**: run your prompt panel, extract the adjectives and caveats attached to your brand, trace each recurring one back to its likely source, then fix the source. If three assistants call your onboarding slow, there is a retrievable document saying so — find it and publish something newer, better structured and more quotable.\\n\\nThis is also the honest answer to \"the AI is wrong about us\": you almost never fix the model. You fix what the model retrieves.",
+    "keyTerms": [
+      { "term": "Sentiment audit", "definition": "Extracting and classifying how a brand is described across sampled AI answers." },
+      { "term": "Source tracing", "definition": "Mapping a recurring characterisation back to the retrievable document causing it." }
+    ],
+    "whyItMatters": "Separates candidates who count mentions from those who understand that framing is the actual outcome.",
+    "examTie": "Strong material for the 'what would you measure' and 'the AI describes us wrongly' questions."
+  },
+  {
+    "id": "th-adobe-dx",
+    "section": "Adobe context",
+    "title": "Adobe Experience Cloud — what the products actually do",
+    "body": "Round 3 is judged partly on whether your solution feels relevant to Adobe's business. Knowing roughly what these products do, and saying it accurately, is worth real credibility.\n\n- **Adobe Experience Platform (AEP)** — the underlying customer-data platform. Ingests behavioural and profile data from many sources and unifies it into real-time customer profiles on a common schema (XDM).\n- **Real-Time CDP** — built on AEP; assembles unified profiles and activates audience segments to downstream channels.\n- **Adobe Analytics** — analytics and reporting across digital touchpoints.\n- **Adobe Journey Optimizer (AJO)** — designs and executes personalised, triggered customer journeys across channels.\n- **Adobe Experience Manager (AEM)** — content management and digital asset management; where the actual web content and assets live.\n- **Firefly** — Adobe's generative AI family for image, video and design, built with commercial safety in mind.\n- **AEP Agent Orchestrator** — Adobe's framework for building and coordinating AI agents across Experience Platform data and applications.\n\nThe commercial logic connecting these to this year's theme: Adobe sells the stack brands use to be visible and to convert. If discovery migrates from search results into AI assistants, Adobe's customers need to measure and influence visibility on those surfaces — which is precisely why the hackathon theme is what it is. Adobe also announced its intent to acquire Semrush in November 2025, which points squarely at owning brand-visibility measurement.",
+    "keyTerms": [
+      { "term": "AEP", "definition": "Adobe Experience Platform — the customer data foundation underpinning Adobe's DX applications." },
+      { "term": "XDM", "definition": "Experience Data Model — the standard schema AEP uses to unify data across sources." },
+      { "term": "Agent Orchestrator", "definition": "Adobe's framework for building and coordinating AI agents over Experience Platform data." }
+    ],
+    "whyItMatters": "Grounding a recommendation in the customer's actual product line is a cheap, high-return credibility move.",
+    "examTie": "Reference one product accurately rather than listing all of them. A wrong claim is worse than no claim."
+  },
+  {
+    "id": "th-adobe-why",
+    "section": "Adobe context",
+    "title": "Why Adobe set this theme",
+    "body": "Reason backwards from the business and the whole hackathon makes sense.\n\nAdobe's Digital Experience division sells brands the tooling to attract, understand, convert and retain customers on digital surfaces. That business assumes there *is* a surface the brand controls or can influence — a website, a campaign, a search result, an app.\n\nAgentic AI puts an intermediary between the brand and the customer. If a user asks an assistant rather than browsing, then:\n\n- The brand's website may never be visited, so on-site optimisation loses reach.\n- The brand's message is *paraphrased by a third party* rather than delivered as written — a genuine loss of control over positioning.\n- Attribution weakens, so proving marketing's value gets harder exactly when budgets are scrutinised.\n\nEvery Adobe customer will face this, few know how to measure it, and almost nobody has tooling. That is a product gap — which is why \"Speak to Agents: The New Language of Brand Visibility\" is the theme, and why the announced intent to acquire Semrush in November 2025 reads as a move to own that measurement layer.\n\n**What this implies for your Round 3 build:** solutions that *measure and improve brand visibility inside AI answers* sit directly on Adobe's commercial roadmap. A generic chatbot does not. If you can articulate, in one sentence, which Adobe customer problem your project solves and what it would replace, you are ahead of most teams before you have written a line of code.",
+    "keyTerms": [
+      { "term": "Digital Experience (DX)", "definition": "Adobe's enterprise division selling marketing, analytics and content tooling to brands." },
+      { "term": "Intermediation", "definition": "An agent standing between brand and customer, paraphrasing the brand's message." }
+    ],
+    "whyItMatters": "Judges reward solutions that understand the business problem, not just the technology.",
+    "examTie": "Frame your Round 3 pitch as 'this is the tool an Adobe customer needs and cannot currently buy'."
+  }
+]
