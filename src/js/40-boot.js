@@ -119,12 +119,23 @@ function keyboard(e) {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flashFlipped = !flashFlipped; go('flash'); }
   }
 
-  if (CURRENT === 'mock' && mock && !mock.done) {
-    const idx = ['1', '2', '3', '4'].indexOf(e.key);
-    if (idx !== -1) { e.preventDefault(); mock.picks[mock.cur] = idx; go('mock'); }
-    if (e.key === 'ArrowRight' && mock.cur < MOCK_N - 1) { mock.cur++; go('mock'); }
-    if (e.key === 'ArrowLeft' && mock.cur > 0) { mock.cur--; go('mock'); }
-    if ((e.key || '').toLowerCase() === 'f') { mock.flags[mock.cur] = !mock.flags[mock.cur]; go('mock'); }
+  // Live assessment. There is no navigation to bind — you cannot move between
+  // questions — so the only shortcuts are select and submit. Those two are
+  // worth having: keyboard answering is markedly faster than the mouse, and
+  // speed is half the marks.
+  if (CURRENT === 'mock' && typeof EX !== 'undefined' && EX && EX.phase === 'live') {
+    const opts = $$('.sh-opt');
+    const numeric = ['1', '2', '3', '4'].indexOf(e.key);
+    const alpha = ['a', 'b', 'c', 'd'].indexOf((e.key || '').toLowerCase());
+    const pick = numeric !== -1 ? numeric : alpha;
+    if (pick !== -1 && opts[pick]) { e.preventDefault(); opts[pick].click(); return; }
+
+    if (e.key === 'Enter') {
+      const submit = $$('button').filter(function (b) {
+        return /^Submit (answer|solution)$/.test(b.textContent.trim()) && !b.disabled;
+      })[0];
+      if (submit) { e.preventDefault(); submit.click(); }
+    }
   }
 }
 
@@ -133,13 +144,22 @@ function showHelp() {
   const m = el('div', { class: 'modal' });
   m.appendChild(el('h2', { text: 'Keyboard' }));
   m.appendChild(mdBlock([
+    '**In the Round 1 assessment**',
+    '',
     '| Key | Does |',
     '|---|---|',
-    '| `1` `2` `3` `4` or `A`–`D` | Pick an option |',
-    '| `Enter` / `N` | Next question (after answering) |',
-    '| `S` | Star the current question |',
-    '| `F` | Flag for review, during a mock |',
-    '| `←` `→` | Move between mock questions |',
+    '| `1` `2` `3` `4` or `A`–`D` | Select that option |',
+    '| `Enter` | Submit the answer and move on |',
+    '',
+    'Selecting and submitting from the keyboard is several seconds faster per question than reaching for the mouse — and speed is half the marks. There is nothing bound to Skip, deliberately: a submitted or skipped question can never be reopened, so that one stays a mouse click.',
+    '',
+    '**Everywhere else**',
+    '',
+    '| Key | Does |',
+    '|---|---|',
+    '| `1` `2` `3` `4` or `A`–`D` | Answer in MCQ practice |',
+    '| `Enter` / `N` | Next question, once answered |',
+    '| `S` | Star the current practice question |',
     '| `Space` | Flip a flashcard |',
     '| `/` | Search |',
     '| `?` | This panel |',

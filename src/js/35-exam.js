@@ -322,7 +322,9 @@ function exInstructions() {
     '- **No WhatsApp, Discord, Chrome, ChatGPT or similar open** — this causes an automatic exit and is flagged.',
     '- Avoid clothing with images or logos. **Do not rest your hand on your face** — it can trigger a "mobile phone detected" violation.',
     '',
-    '> This simulation reproduces the timing, the no-going-back rule and the speed marking, and it logs tab switches and fullscreen exits. It uses **no camera and no microphone**, and nothing leaves your browser.',
+    '**Check your setup now.** The *Proctor preview* panel in the bottom-right corner turns on your camera and microphone so you can see your framing and watch the noise level before it matters. It is opt-in, runs entirely in this browser, records nothing and uploads nothing — use it to find out that your room is too loud *now* rather than at question 6.',
+    '',
+    '> This simulation reproduces the timing, the no-going-back rule and the speed marking, and it logs tab switches and fullscreen exits. The camera preview is optional and local; nothing leaves your browser.',
   ].join('\n')));
 
   const agree = el('label', { class: 'sh-agree' });

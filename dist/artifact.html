@@ -1101,6 +1101,101 @@ body.exam-mode .topbar { display: none; }
   border-left: 2px solid var(--warn); padding-left: 10px;
 }
 
+/* ---- Proctor preview ----------------------------------------------------
+   Floating, local-only camera + mic meter. Deliberately small and quiet: it
+   is a mirror, not the main event. */
+
+.pm-panel {
+  position: fixed; right: 16px; bottom: 16px; z-index: 90;
+  width: 248px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pm-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 8px 7px 11px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: .78rem;
+}
+.pm-panel[data-collapsed="true"] .pm-head { border-bottom: 0; }
+.pm-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex: none;
+}
+.pm-dot[data-on="true"] { background: var(--bad); animation: pulse 2s ease-in-out infinite; }
+.pm-icon {
+  width: 20px; height: 20px; border: 0; background: none; cursor: pointer;
+  color: var(--text-faint); border-radius: 3px; font-size: .72rem; line-height: 1;
+}
+.pm-icon:hover { background: var(--surface-2); color: var(--text); }
+
+.pm-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+
+.pm-video-wrap {
+  position: relative; width: 100%; aspect-ratio: 4 / 3;
+  background: #000; border-radius: var(--radius-sm); overflow: hidden;
+}
+.pm-video {
+  width: 100%; height: 100%; object-fit: cover;
+  transform: scaleX(-1);            /* mirror, so it reads like a mirror */
+  display: block;
+}
+.pm-frame-guide {
+  position: absolute; left: 22%; top: 12%; right: 22%; bottom: 18%;
+  border: 1.5px dashed rgba(255, 255, 255, .5);
+  border-radius: 40% 40% 34% 34%;
+  pointer-events: none;
+}
+
+.pm-label {
+  font-size: .64rem; text-transform: uppercase; letter-spacing: .09em;
+  font-weight: 700; color: var(--text-faint);
+}
+
+.pm-meter {
+  position: relative; height: 9px;
+  background: var(--surface-3);
+  border-radius: 5px; overflow: hidden;
+}
+.pm-fill {
+  display: block; height: 100%; width: 0%;
+  background: var(--ok); border-radius: 5px;
+  transition: width .06s linear;
+}
+.pm-fill[data-loud="true"] { background: var(--bad); }
+.pm-threshold {
+  position: absolute; top: -2px; bottom: -2px; left: 35%;
+  width: 2px; background: var(--warn);
+}
+.pm-peak {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--text); opacity: .55;
+  transition: left .12s linear;
+}
+
+.pm-row { display: flex; align-items: center; gap: 6px; }
+.pm-state { font-size: .72rem; font-weight: 650; color: var(--ok); }
+.pm-state.loud { color: var(--bad); }
+.pm-count {
+  font-family: var(--font-mono); font-size: .75rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pm-note { font-size: .69rem; line-height: 1.45; color: var(--text-dim); margin: 0; }
+.pm-err {
+  font-size: .7rem; line-height: 1.45; margin: 0;
+  color: var(--bad); background: var(--bad-soft);
+  border: 1px solid var(--bad-line); border-radius: var(--radius-sm); padding: 7px 8px;
+}
+
+@media (max-width: 860px) {
+  .pm-panel { width: 172px; right: 8px; bottom: 8px; }
+  .pm-frame-guide { display: none; }
+}
+
 /* ---- Report ------------------------------------------------------------- */
 
 .sh-report { max-width: 940px; margin: 0 auto; padding: 26px 24px 80px; }
@@ -3272,7 +3367,9 @@ function exInstructions() {
     '- **No WhatsApp, Discord, Chrome, ChatGPT or similar open** — this causes an automatic exit and is flagged.',
     '- Avoid clothing with images or logos. **Do not rest your hand on your face** — it can trigger a "mobile phone detected" violation.',
     '',
-    '> This simulation reproduces the timing, the no-going-back rule and the speed marking, and it logs tab switches and fullscreen exits. It uses **no camera and no microphone**, and nothing leaves your browser.',
+    '**Check your setup now.** The *Proctor preview* panel in the bottom-right corner turns on your camera and microphone so you can see your framing and watch the noise level before it matters. It is opt-in, runs entirely in this browser, records nothing and uploads nothing — use it to find out that your room is too loud *now* rather than at question 6.',
+    '',
+    '> This simulation reproduces the timing, the no-going-back rule and the speed marking, and it logs tab switches and fullscreen exits. The camera preview is optional and local; nothing leaves your browser.',
   ].join('\n')));
 
   const agree = el('label', { class: 'sh-agree' });
@@ -3690,6 +3787,247 @@ ROUTES.mock = function (params) {
 
 
 /* ==========================================================================
+   Proctor preview — a local camera view and a live microphone level meter,
+   so you can see what the real proctor would see and hear before it costs you.
+
+   Everything here stays in the browser: the stream is attached to a <video>
+   element and an AnalyserNode and never leaves the page. Nothing is recorded,
+   nothing is uploaded, there is no network call anywhere in this file.
+
+   It is strictly opt-in — the camera is only requested when the button is
+   pressed, and the tracks are stopped the moment you leave the mock.
+   ========================================================================== */
+
+const MEDIA = {
+  stream: null,
+  audioCtx: null,
+  analyser: null,
+  data: null,
+  raf: null,
+  panel: null,
+  collapsed: false,
+  noiseEvents: 0,
+  loudSince: 0,
+  peak: 0,
+  error: '',
+};
+
+// RMS above this counts as "loud enough that a real proctor would notice".
+// Tuned so normal room tone sits well below it and speech clearly crosses it.
+const MEDIA_NOISE_THRESHOLD = 0.11;
+const MEDIA_LOUD_MS = 400;
+
+function mediaSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+async function mediaStart() {
+  MEDIA.error = '';
+  mediaRender();
+  if (!mediaSupported()) {
+    MEDIA.error = 'This browser exposes no camera or microphone API.';
+    mediaRender();
+    return;
+  }
+  try {
+    MEDIA.stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+  } catch (err) {
+    const name = (err && err.name) || '';
+    MEDIA.error =
+      name === 'NotAllowedError'
+        ? 'Permission denied. Allow camera and microphone for this page, then try again.'
+        : name === 'NotFoundError' || name === 'OverconstrainedError'
+        ? 'No camera or microphone found on this device.'
+        : name === 'NotReadableError'
+        ? 'Another app is already using the camera. Close it and try again.'
+        : 'Could not start the preview: ' + (name || 'unknown error') +
+          '. If this page is embedded in another site, open it in its own tab instead.';
+    mediaRender();
+    return;
+  }
+
+  // Audio analysis. No processing of the signal, just a level read.
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    MEDIA.audioCtx = new Ctx();
+    if (MEDIA.audioCtx.state === 'suspended') await MEDIA.audioCtx.resume();
+    const source = MEDIA.audioCtx.createMediaStreamSource(MEDIA.stream);
+    MEDIA.analyser = MEDIA.audioCtx.createAnalyser();
+    MEDIA.analyser.fftSize = 1024;
+    MEDIA.analyser.smoothingTimeConstant = 0.6;
+    source.connect(MEDIA.analyser);   // deliberately NOT connected to destination — no feedback loop
+    MEDIA.data = new Uint8Array(MEDIA.analyser.fftSize);
+  } catch (e) {
+    MEDIA.analyser = null;   // video still works without the meter
+  }
+
+  MEDIA.noiseEvents = 0;
+  MEDIA.peak = 0;
+  mediaRender();
+  mediaLoop();
+}
+
+function mediaStop() {
+  if (MEDIA.raf) { cancelAnimationFrame(MEDIA.raf); MEDIA.raf = null; }
+  if (MEDIA.stream) {
+    MEDIA.stream.getTracks().forEach(function (t) { t.stop(); });
+    MEDIA.stream = null;
+  }
+  if (MEDIA.audioCtx) {
+    try { MEDIA.audioCtx.close(); } catch (e) { /* already closed */ }
+    MEDIA.audioCtx = null;
+  }
+  MEDIA.analyser = null;
+  MEDIA.loudSince = 0;
+  mediaRender();
+}
+
+function mediaLevel() {
+  if (!MEDIA.analyser) return 0;
+  MEDIA.analyser.getByteTimeDomainData(MEDIA.data);
+  let sum = 0;
+  for (let i = 0; i < MEDIA.data.length; i++) {
+    const v = (MEDIA.data[i] - 128) / 128;
+    sum += v * v;
+  }
+  return Math.sqrt(sum / MEDIA.data.length);
+}
+
+function mediaLoop() {
+  MEDIA.raf = requestAnimationFrame(mediaLoop);
+  if (!MEDIA.stream) return;
+
+  const rms = mediaLevel();
+  const pct = Math.min(100, rms * 320);          // headroom so speech lands mid-scale
+  MEDIA.peak = Math.max(MEDIA.peak * 0.94, pct); // decaying peak hold
+
+  const fill = $('#pmFill'), peak = $('#pmPeak'), count = $('#pmNoiseCount'), state = $('#pmState');
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.dataset.loud = rms > MEDIA_NOISE_THRESHOLD ? 'true' : 'false';
+  }
+  if (peak) peak.style.left = MEDIA.peak + '%';
+
+  // Sustained loudness, not a single spike — a cough should not count.
+  const now = Date.now();
+  if (rms > MEDIA_NOISE_THRESHOLD) {
+    if (!MEDIA.loudSince) MEDIA.loudSince = now;
+    else if (now - MEDIA.loudSince > MEDIA_LOUD_MS) {
+      MEDIA.noiseEvents++;
+      MEDIA.loudSince = now + 900;   // debounce before it can count again
+      if (count) count.textContent = String(MEDIA.noiseEvents);
+    }
+  } else {
+    MEDIA.loudSince = 0;
+  }
+  if (state) {
+    const loud = rms > MEDIA_NOISE_THRESHOLD;
+    state.textContent = loud ? 'Noise a proctor would flag' : 'Quiet';
+    state.className = 'pm-state' + (loud ? ' loud' : '');
+  }
+}
+
+/* ---- Panel -------------------------------------------------------------- */
+
+function mediaEnsurePanel() {
+  if (MEDIA.panel && document.body.contains(MEDIA.panel)) return MEDIA.panel;
+  const p = el('div', { class: 'pm-panel', id: 'pmPanel' });
+  document.body.appendChild(p);
+  MEDIA.panel = p;
+  return p;
+}
+
+function mediaRender() {
+  const p = mediaEnsurePanel();
+  clear(p);
+  p.dataset.collapsed = MEDIA.collapsed ? 'true' : 'false';
+
+  const head = el('div', { class: 'pm-head' });
+  head.appendChild(el('span', { class: 'pm-dot', 'data-on': MEDIA.stream ? 'true' : 'false' }));
+  head.appendChild(el('strong', { text: 'Proctor preview' }));
+  head.appendChild(el('span', { style: 'flex:1' }));
+  head.appendChild(el('button', {
+    class: 'pm-icon', type: 'button', title: MEDIA.collapsed ? 'Expand' : 'Collapse',
+    text: MEDIA.collapsed ? '▢' : '—',
+    onclick: function () { MEDIA.collapsed = !MEDIA.collapsed; mediaRender(); },
+  }));
+  head.appendChild(el('button', {
+    class: 'pm-icon', type: 'button', title: 'Turn off and hide', text: '✕',
+    onclick: function () { mediaStop(); mediaHide(); },
+  }));
+  p.appendChild(head);
+
+  if (MEDIA.collapsed) return;
+
+  const body = el('div', { class: 'pm-body' });
+
+  if (!MEDIA.stream) {
+    body.appendChild(el('p', {
+      class: 'pm-note',
+      text: 'See exactly what the proctor would see and hear. Runs entirely in this browser — nothing is recorded and nothing is sent anywhere.',
+    }));
+    if (MEDIA.error) body.appendChild(el('p', { class: 'pm-err', text: MEDIA.error }));
+    body.appendChild(el('button', {
+      class: 'btn btn-sm btn-primary', style: 'width:100%',
+      text: 'Turn on camera and mic',
+      onclick: function () { mediaStart(); },
+    }));
+  } else {
+    const vidWrap = el('div', { class: 'pm-video-wrap' });
+    const v = el('video', { class: 'pm-video', autoplay: true, playsinline: true, muted: true });
+    v.muted = true;                     // attribute alone is unreliable across browsers
+    v.srcObject = MEDIA.stream;
+    vidWrap.appendChild(v);
+    vidWrap.appendChild(el('div', { class: 'pm-frame-guide' }));
+    body.appendChild(vidWrap);
+
+    body.appendChild(el('div', { class: 'pm-label', text: 'Microphone level' }));
+    const meter = el('div', { class: 'pm-meter' });
+    meter.appendChild(el('i', { class: 'pm-fill', id: 'pmFill' }));
+    meter.appendChild(el('i', { class: 'pm-threshold' }));
+    meter.appendChild(el('i', { class: 'pm-peak', id: 'pmPeak' }));
+    body.appendChild(meter);
+
+    const row = el('div', { class: 'pm-row' });
+    row.appendChild(el('span', { class: 'pm-state', id: 'pmState', text: 'Quiet' }));
+    row.appendChild(el('span', { style: 'flex:1' }));
+    row.appendChild(el('span', { class: 'pm-note', style: 'margin:0', text: 'Noise events' }));
+    row.appendChild(el('span', { class: 'pm-count', id: 'pmNoiseCount', text: String(MEDIA.noiseEvents) }));
+    body.appendChild(row);
+
+    body.appendChild(el('p', {
+      class: 'pm-note',
+      text: 'Keep your face inside the guide, both hands off your face, and the bar below the marked line. Sustained noise past that line is what the real system logs.',
+    }));
+    body.appendChild(el('button', {
+      class: 'btn btn-sm', style: 'width:100%', text: 'Turn off',
+      onclick: function () { mediaStop(); },
+    }));
+  }
+  p.appendChild(body);
+}
+
+function mediaShow() { mediaEnsurePanel().style.display = 'flex'; mediaRender(); }
+function mediaHide() { if (MEDIA.panel) MEDIA.panel.style.display = 'none'; }
+
+// Show only where it is relevant, and cut the camera the moment you leave.
+function mediaSync(route) {
+  if (route === 'mock' || route === 'r2sim') mediaShow();
+  else { if (MEDIA.stream) mediaStop(); mediaHide(); }
+}
+
+// Wrap the router so the panel follows navigation without touching go() itself.
+const goWithoutMedia = go;
+go = function (route, params) {
+  goWithoutMedia(route, params);
+  mediaSync(route);
+};
+
+
+/* ==========================================================================
    Shell: rail navigation, theme, countdown ticker, keyboard shortcuts, boot.
    ========================================================================== */
 
@@ -3810,12 +4148,23 @@ function keyboard(e) {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flashFlipped = !flashFlipped; go('flash'); }
   }
 
-  if (CURRENT === 'mock' && mock && !mock.done) {
-    const idx = ['1', '2', '3', '4'].indexOf(e.key);
-    if (idx !== -1) { e.preventDefault(); mock.picks[mock.cur] = idx; go('mock'); }
-    if (e.key === 'ArrowRight' && mock.cur < MOCK_N - 1) { mock.cur++; go('mock'); }
-    if (e.key === 'ArrowLeft' && mock.cur > 0) { mock.cur--; go('mock'); }
-    if ((e.key || '').toLowerCase() === 'f') { mock.flags[mock.cur] = !mock.flags[mock.cur]; go('mock'); }
+  // Live assessment. There is no navigation to bind — you cannot move between
+  // questions — so the only shortcuts are select and submit. Those two are
+  // worth having: keyboard answering is markedly faster than the mouse, and
+  // speed is half the marks.
+  if (CURRENT === 'mock' && typeof EX !== 'undefined' && EX && EX.phase === 'live') {
+    const opts = $$('.sh-opt');
+    const numeric = ['1', '2', '3', '4'].indexOf(e.key);
+    const alpha = ['a', 'b', 'c', 'd'].indexOf((e.key || '').toLowerCase());
+    const pick = numeric !== -1 ? numeric : alpha;
+    if (pick !== -1 && opts[pick]) { e.preventDefault(); opts[pick].click(); return; }
+
+    if (e.key === 'Enter') {
+      const submit = $$('button').filter(function (b) {
+        return /^Submit (answer|solution)$/.test(b.textContent.trim()) && !b.disabled;
+      })[0];
+      if (submit) { e.preventDefault(); submit.click(); }
+    }
   }
 }
 
@@ -3824,13 +4173,22 @@ function showHelp() {
   const m = el('div', { class: 'modal' });
   m.appendChild(el('h2', { text: 'Keyboard' }));
   m.appendChild(mdBlock([
+    '**In the Round 1 assessment**',
+    '',
     '| Key | Does |',
     '|---|---|',
-    '| `1` `2` `3` `4` or `A`–`D` | Pick an option |',
-    '| `Enter` / `N` | Next question (after answering) |',
-    '| `S` | Star the current question |',
-    '| `F` | Flag for review, during a mock |',
-    '| `←` `→` | Move between mock questions |',
+    '| `1` `2` `3` `4` or `A`–`D` | Select that option |',
+    '| `Enter` | Submit the answer and move on |',
+    '',
+    'Selecting and submitting from the keyboard is several seconds faster per question than reaching for the mouse — and speed is half the marks. There is nothing bound to Skip, deliberately: a submitted or skipped question can never be reopened, so that one stays a mouse click.',
+    '',
+    '**Everywhere else**',
+    '',
+    '| Key | Does |',
+    '|---|---|',
+    '| `1` `2` `3` `4` or `A`–`D` | Answer in MCQ practice |',
+    '| `Enter` / `N` | Next question, once answered |',
+    '| `S` | Star the current practice question |',
     '| `Space` | Flip a flashcard |',
     '| `/` | Search |',
     '| `?` | This panel |',
