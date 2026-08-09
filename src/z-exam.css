@@ -134,6 +134,19 @@
 .sh-pal button[data-s="ansmarked"] { background: var(--info); border-color: var(--info); color: #fff; border-radius: 50%; box-shadow: inset -6px -6px 0 -3px var(--ok); }
 .sh-pal button[aria-current="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
 
+/* ---- Progress strip -----------------------------------------------------
+   Read-only by design. The guidelines forbid navigating between questions, so
+   this must never look clickable. */
+
+.sh-strip { display: flex; gap: 4px; margin: 14px 0 4px; flex-wrap: wrap; }
+.sh-strip-cell {
+  width: 26px; height: 5px; border-radius: 3px;
+  background: var(--surface-3);
+}
+.sh-strip-cell[data-s="locked"]  { background: var(--ok); }
+.sh-strip-cell[data-s="skipped"] { background: var(--bad); }
+.sh-strip-cell[data-s="current"] { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
 /* ---- Instructions ------------------------------------------------------- */
 
 .sh-instructions { max-width: 860px; margin: 0 auto; padding: 28px 24px 80px; }
